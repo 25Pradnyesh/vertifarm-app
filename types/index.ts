@@ -130,5 +130,9 @@ export interface UserProfile {
 
 export interface AuthUser extends UserProfile {
   authProvider?: 'google' | 'email' | 'phone' | 'guest';
+  googleId?: string;
+  accessToken?: string;
+  idToken?: string;
+  createdAt?: string;
 }
 

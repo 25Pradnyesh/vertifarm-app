@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,16 +9,48 @@ import { typography } from '../../constants/typography';
 import { spacing } from '../../constants/spacing';
 import { radii } from '../../constants/radii';
 
+import { authService } from '../../services/authService';
+
 export default function SignupScreen() {
   const router = useRouter();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const handleSignup = () => {
-    // Mock signup - navigate directly to dashboard
-    router.replace('/(tabs)');
+  // Redirect to dashboard if already authenticated
+  useEffect(() => {
+    if (authService.isAuthenticated()) {
+      router.replace('/(tabs)');
+    }
+  }, [router]);
+
+  const handleSignup = async () => {
+    if (!name.trim()) {
+      setErrorMessage('Please enter your full name.');
+      return;
+    }
+    if (!email.trim()) {
+      setErrorMessage('Please enter your email address.');
+      return;
+    }
+    if (password && confirmPassword && password !== confirmPassword) {
+      setErrorMessage('Passwords do not match.');
+      return;
+    }
+
+    setIsLoading(true);
+    setErrorMessage(null);
+    try {
+      await authService.signupWithEmail(name, email, password);
+      router.replace('/(tabs)');
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Signup failed.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -41,6 +73,14 @@ export default function SignupScreen() {
       <Text style={styles.title}>Create Account</Text>
       <Text style={styles.subtitle}>Start monitoring your farm with VertiFarm</Text>
 
+      {/* Error Message Box */}
+      {errorMessage ? (
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle-outline" size={18} color={colors.status.critical.primary} />
+          <Text style={styles.errorText}>{errorMessage}</Text>
+        </View>
+      ) : null}
+
       {/* Name Input */}
       <View style={styles.inputContainer}>
         <View style={styles.inputWrapper}>
@@ -50,7 +90,10 @@ export default function SignupScreen() {
             placeholder="Full Name"
             placeholderTextColor={colors.textMuted}
             value={name}
-            onChangeText={setName}
+            onChangeText={(text) => {
+              setName(text);
+              if (errorMessage) setErrorMessage(null);
+            }}
           />
         </View>
       </View>
@@ -64,7 +107,10 @@ export default function SignupScreen() {
             placeholder="Email Address"
             placeholderTextColor={colors.textMuted}
             value={email}
-            onChangeText={setEmail}
+            onChangeText={(text) => {
+              setEmail(text);
+              if (errorMessage) setErrorMessage(null);
+            }}
             keyboardType="email-address"
             autoCapitalize="none"
           />
@@ -80,7 +126,10 @@ export default function SignupScreen() {
             placeholder="Password"
             placeholderTextColor={colors.textMuted}
             value={password}
-            onChangeText={setPassword}
+            onChangeText={(text) => {
+              setPassword(text);
+              if (errorMessage) setErrorMessage(null);
+            }}
             secureTextEntry
           />
         </View>
@@ -95,7 +144,10 @@ export default function SignupScreen() {
             placeholder="Confirm Password"
             placeholderTextColor={colors.textMuted}
             value={confirmPassword}
-            onChangeText={setConfirmPassword}
+            onChangeText={(text) => {
+              setConfirmPassword(text);
+              if (errorMessage) setErrorMessage(null);
+            }}
             secureTextEntry
           />
         </View>
@@ -103,7 +155,13 @@ export default function SignupScreen() {
 
       {/* Signup Button */}
       <View style={styles.buttonWrapper}>
-        <Button title="Create Account" onPress={handleSignup} variant="primary" fullWidth />
+        <Button
+          title="Create Account"
+          onPress={handleSignup}
+          variant="primary"
+          fullWidth
+          loading={isLoading}
+        />
       </View>
 
       {/* Login Link */}
@@ -136,6 +194,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     marginBottom: spacing.xxl,
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.status.critical.background,
+    borderWidth: 1,
+    borderColor: colors.status.critical.border,
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.lg,
+    gap: spacing.xs,
+  },
+  errorText: {
+    fontSize: 13,
+    color: colors.status.critical.text,
+    flex: 1,
   },
   inputContainer: {
     marginBottom: spacing.lg,

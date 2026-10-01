@@ -7,6 +7,7 @@ import {
   TextInput,
   ActivityIndicator,
   Alert,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -34,10 +35,12 @@ export default function LoginScreen() {
 
   // Warm up system browser on Android for smoother OAuth popup
   useEffect(() => {
-    WebBrowser.warmUpAsync();
-    return () => {
-      WebBrowser.coolDownAsync();
-    };
+    if (Platform.OS === 'android') {
+      WebBrowser.warmUpAsync();
+      return () => {
+        WebBrowser.coolDownAsync();
+      };
+    }
   }, []);
 
   const googleClientIds = authService.getGoogleClientIds();
@@ -50,6 +53,7 @@ export default function LoginScreen() {
     iosClientId: googleClientIds.iosClientId,
     androidClientId: googleClientIds.androidClientId,
     scopes: ['openid', 'profile', 'email'],
+    selectAccount: true,
   });
 
   // Handle Google OAuth response lifecycle: success, cancellation, and error
@@ -66,7 +70,7 @@ export default function LoginScreen() {
     if (response.type === 'error') {
       setIsGoogleLoading(false);
       const msg =
-        response.error?.message ||
+        (response.error as any)?.message ||
         response.params?.error_description ||
         'Google sign-in was unsuccessful.';
       setErrorMessage(msg);
@@ -102,31 +106,20 @@ export default function LoginScreen() {
     }
   }, [response, router]);
 
+  // Redirect to dashboard if already authenticated
+  useEffect(() => {
+    if (authService.isAuthenticated()) {
+      router.replace('/(tabs)');
+    }
+  }, [router]);
+
   const handleGoogleSignIn = async () => {
     setErrorMessage(null);
 
-    // If Google OAuth credentials are not set up in .env yet, inform the developer and offer demo login
+    // If Google OAuth credentials are not set up in .env yet, inform the user
     if (!isGoogleConfigured) {
-      Alert.alert(
-        'Google OAuth Setup Required',
-        'Google Client IDs are not yet configured in environment variables.\n\nWould you like to sign in with a demo Google profile for testing?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Sign In (Demo Google)',
-            onPress: async () => {
-              setIsGoogleLoading(true);
-              try {
-                await authService.loginWithMockGoogle();
-                router.replace('/(tabs)');
-              } catch (err: any) {
-                setErrorMessage(err.message || 'Demo sign-in failed');
-              } finally {
-                setIsGoogleLoading(false);
-              }
-            },
-          },
-        ]
+      setErrorMessage(
+        'Google OAuth is not configured. Please set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID (or platform client ID) in your .env file.'
       );
       return;
     }
