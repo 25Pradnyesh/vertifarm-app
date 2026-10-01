@@ -15,6 +15,15 @@ export const config = {
     timeout: 30000,
   },
 
+  auth: {
+    google: {
+      webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '',
+      iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || '',
+      androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || '',
+      clientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || '',
+    },
+  },
+
   sensor: {
     updateInterval: 5000, // Target refresh rate: < 5 seconds
     offlineThreshold: 60000, // Mark sensor offline after 60s

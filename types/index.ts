@@ -127,3 +127,8 @@ export interface UserProfile {
   email: string;
   avatarUrl?: string;
 }
+
+export interface AuthUser extends UserProfile {
+  authProvider?: 'google' | 'email' | 'phone' | 'guest';
+}
+
