@@ -755,12 +755,12 @@ The table below summarizes the operational status of all major system capabiliti
 
 | Capability | Mobile Service | Backend API | Status |
 |---|---|---|---|
-| **Authentication** | [authService.ts](file:///d:/farm-app/services/authService.ts) (Client Google OAuth + Mock Email) | FastAPI OAuth Token Verification (`/api/v1/auth/*`) | Client Implemented / Backend Planned |
-| **Farms** | [farmService.ts](file:///d:/farm-app/services/farmService.ts) (Mock Facilities) | FastAPI CRUD (`/api/v1/farms`) | Mock Only / Backend Planned |
-| **Sensors** | [sensorService.ts](file:///d:/farm-app/services/sensorService.ts) (Mock Hardware Inventory) | FastAPI Device Pairing (`/api/v1/devices`) | Mock Only / Backend Planned |
-| **Telemetry** | [sensorService.ts](file:///d:/farm-app/services/sensorService.ts) (24h Time-Series Mock) | FastAPI + PostgreSQL + MQTT (`/api/v1/telemetry/*`) | Mock Only / Backend Planned |
-| **Alerts** | [alertService.ts](file:///d:/farm-app/services/alertService.ts) (In-Memory Severity Filtering) | FastAPI Threshold Evaluator + DB (`/api/v1/alerts/*`) | Mock Only / Backend Planned |
-| **AI Scan** | [aiService.ts](file:///d:/farm-app/services/aiService.ts) (Static Diagnostic Scans) | FastAPI + PyTorch CNN Worker (`/api/v1/ai/*`) | Mock Only / Backend Planned |
-| **Recommendations** | [aiService.ts](file:///d:/farm-app/services/aiService.ts) (Mock Care Tips) | FastAPI Agronomic Rules Engine (`/api/v1/recommendations`) | Mock Only / Backend Planned |
+| **Authentication** | [authService.ts](file:///d:/farm-app/services/authService.ts) (Client Google OAuth + Mock Email) | FastAPI OAuth Token Verification (`/api/v1/auth/*`) | ✅ Implemented (Client & Backend Stage 4) |
+| **Farms** | [farmService.ts](file:///d:/farm-app/services/farmService.ts) (Mock + API Adapter) | FastAPI CRUD (`/api/v1/farms`) | ✅ Implemented (Stage 4 Foundation) |
+| **Sensors** | [sensorService.ts](file:///d:/farm-app/services/sensorService.ts) (Mock + API Adapter) | FastAPI Device Management (`/api/v1/sensors`) | ✅ Implemented (Stage 4 Foundation) |
+| **Telemetry** | [sensorService.ts](file:///d:/farm-app/services/sensorService.ts) (Mock + API Adapter) | FastAPI Telemetry Summaries (`/api/v1/telemetry/*`) | ✅ Implemented (Stage 4 Foundation) |
+| **Alerts** | [alertService.ts](file:///d:/farm-app/services/alertService.ts) (Mock + API Adapter) | FastAPI Alerts & Resolution (`/api/v1/alerts/*`) | ✅ Implemented (Stage 4 Foundation) |
+| **AI Scan** | [aiService.ts](file:///d:/farm-app/services/aiService.ts) (Mock + API Adapter) | FastAPI Diagnostic Scans (`/api/v1/ai/*`) | ✅ Implemented (Stage 4 Foundation) |
+| **Recommendations** | [aiService.ts](file:///d:/farm-app/services/aiService.ts) (Mock + API Adapter) | FastAPI Recommendations (`/api/v1/recommendations`) | ✅ Implemented (Stage 4 Foundation) |
 | **Realtime Stream** | None (Static Poll on Mount) | WebSockets / MQTT Streaming | Planned / Not Implemented |
 | **Push Alerts** | None (In-App Badges Only) | Expo Push Notification Service (APNs/FCM) | Planned / Not Implemented |

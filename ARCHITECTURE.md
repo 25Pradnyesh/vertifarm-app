@@ -12,8 +12,10 @@ As of today, the project exists as a **client-side mobile application** built on
 - **Data Source:** Services currently consume structured mock datasets (`data/mock/`) with simulated asynchronous network delays to replicate real API latency.
 - **Authentication:** Google OAuth 2.0 authentication is implemented on the client via `expo-auth-session`, paired with local session persistence and an email/password authentication fallback for offline development.
 - **Design System:** A cohesive botanical design system is codified through centralized design tokens (`constants/`) and reusable UI primitives (`components/ui/` and `components/charts/`).
+- **Backend & Database Foundation (Stage 4):** A dedicated Python FastAPI backend (`backend/app/`) with PostgreSQL / Supabase schema (`backend/app/db/schema.sql`), Pydantic models, user ownership isolation, and mobile API adapter (`services/apiClient.ts`).
 
-The architecture is explicitly constructed to establish clean boundaries between the presentation layer, the domain models, and data access. This ensures that the future backend infrastructure (FastAPI, PostgreSQL/Supabase, MQTT broker, and edge hardware) can be introduced by swapping service implementations without requiring changes to the user interface.
+The architecture is explicitly constructed to establish clean boundaries between the presentation layer, the domain models, and data access. Services interface with the FastAPI backend when `EXPO_PUBLIC_API_URL` is configured, while retaining offline mock data fallback for development.
+
 
 ---
 
