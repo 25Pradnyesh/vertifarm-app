@@ -7,6 +7,7 @@ import { Card } from '../../components/ui/Card';
 import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing } from '../../constants/spacing';
+import { radii } from '../../constants/radii';
 import { alertService } from '../../services/alertService';
 import { AlertItem } from '../../types';
 
@@ -24,126 +25,113 @@ export default function AlertsScreen() {
     setAlerts(data);
   };
 
-  const getSeverityIcon = (severity: string) => {
-    switch (severity) {
-      case 'critical':
-        return (
-          <Ionicons
-            name="alert-circle"
-            size={24}
-            color={colors.status.critical.primary}
-          />
-        );
-      case 'warning':
-        return (
-          <Ionicons name="warning" size={24} color={colors.status.warning.primary} />
-        );
-      case 'info':
-        return (
-          <Ionicons
-            name="checkmark-circle"
-            size={24}
-            color={colors.status.healthy.primary}
-          />
-        );
-      default:
-        return (
-          <Ionicons name="information-circle" size={24} color={colors.status.info.primary} />
-        );
+  const getAlertIcon = (alert: AlertItem) => {
+    if (alert.severity === 'critical') {
+      return <Ionicons name="warning" size={20} color={colors.status.critical.primary} />;
     }
+    if (alert.severity === 'warning') {
+      return <Ionicons name="warning-outline" size={20} color={colors.status.warning.primary} />;
+    }
+    return <Ionicons name="checkmark-circle" size={20} color={colors.status.healthy.primary} />;
   };
 
-  const getSeverityBgColor = (severity: string) => {
-    switch (severity) {
-      case 'critical':
-        return colors.status.critical.background;
-      case 'warning':
-        return colors.status.warning.background;
-      case 'info':
-        return colors.status.healthy.background;
-      default:
-        return colors.status.info.background;
+  const getAlertIconBg = (alert: AlertItem) => {
+    if (alert.severity === 'critical') {
+      return colors.status.critical.background;
     }
+    if (alert.severity === 'warning') {
+      return colors.status.warning.background;
+    }
+    return colors.status.healthy.background;
   };
 
   return (
-    <ScreenContainer scroll={false} padding={false}>
+    <ScreenContainer scroll={true} padding={true}>
+      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Alerts</Text>
+        <TouchableOpacity style={styles.inboxButton} onPress={() => router.push('/history')}>
+          <Ionicons name="archive-outline" size={22} color={colors.textPrimary} />
+        </TouchableOpacity>
       </View>
 
-      {/* Filter Pills */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.filterContainer}
-        contentContainerStyle={styles.filterContent}
-      >
-        {(['all', 'critical', 'warning', 'info'] as const).map((item) => (
-          <TouchableOpacity
-            key={item}
-            style={[
-              styles.filterPill,
-              filter === item && styles.filterPillActive,
-            ]}
-            onPress={() => setFilter(item)}
-          >
-            <Text
-              style={[
-                styles.filterText,
-                filter === item && styles.filterTextActive,
-              ]}
+      {/* Filter Chips */}
+      <View style={styles.filterRow}>
+        {(['all', 'critical', 'warning', 'info'] as const).map((type) => {
+          const isActive = filter === type;
+          const label = type.charAt(0).toUpperCase() + type.slice(1);
+          return (
+            <TouchableOpacity
+              key={type}
+              style={[styles.filterChip, isActive && styles.filterChipActive]}
+              onPress={() => setFilter(type)}
+              activeOpacity={0.7}
             >
-              {item.charAt(0).toUpperCase() + item.slice(1)}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+              <Text
+                style={[
+                  styles.filterChipText,
+                  isActive && styles.filterChipTextActive,
+                ]}
+              >
+                {label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
 
-      {/* Alert List */}
-      <ScrollView
-        style={styles.alertList}
-        contentContainerStyle={styles.alertListContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {alerts.map((alert) => (
+      {/* Alerts List */}
+      <View style={styles.alertsList}>
+        {alerts.map((item) => (
           <TouchableOpacity
-            key={alert.id}
-            onPress={() => router.push(`/alerts/${alert.id}`)}
+            key={item.id}
+            onPress={() => router.push(`/alerts/${item.id}` as any)}
             activeOpacity={0.7}
           >
-            <Card
-              variant="default"
-              padding="medium"
-              style={[
-                styles.alertCard,
-                { backgroundColor: getSeverityBgColor(alert.severity) },
-              ] as any}
-            >
-              <View style={styles.alertContent}>
-                <View style={styles.alertIconContainer}>
-                  {getSeverityIcon(alert.severity)}
+            <Card variant="default" padding="medium" style={styles.alertCard}>
+              <View style={styles.alertRow}>
+                <View
+                  style={[
+                    styles.iconCircle,
+                    { backgroundColor: getAlertIconBg(item) },
+                  ]}
+                >
+                  {getAlertIcon(item)}
                 </View>
 
-                <View style={styles.alertTextContainer}>
-                  <Text style={styles.alertTitle}>{alert.title}</Text>
-                  <Text style={styles.alertDescription}>
-                    {alert.description}
+                <View style={styles.alertContent}>
+                  <View style={styles.titleRow}>
+                    <Text style={styles.alertTitle} numberOfLines={1}>
+                      {item.title}
+                    </Text>
+                    <Text style={styles.timestamp}>{item.timestamp}</Text>
+                  </View>
+                  <Text style={styles.alertDescription} numberOfLines={1}>
+                    {item.description}
                   </Text>
-                  <Text style={styles.alertTimestamp}>{alert.timestamp}</Text>
                 </View>
               </View>
             </Card>
           </TouchableOpacity>
         ))}
-      </ScrollView>
+
+        {alerts.length === 0 && (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="checkmark-done-circle-outline" size={56} color={colors.leafGreen} />
+            <Text style={styles.emptyTitle}>No Alerts</Text>
+            <Text style={styles.emptySubtitle}>All parameters in this category are operating within threshold.</Text>
+          </View>
+        )}
+      </View>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
   header: {
-    paddingHorizontal: spacing.screenPadding,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginTop: spacing.sm,
     marginBottom: spacing.lg,
   },
@@ -152,66 +140,93 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.bold,
     color: colors.textPrimary,
   },
-  filterContainer: {
+  inboxButton: {
+    padding: spacing.xs,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
     marginBottom: spacing.lg,
   },
-  filterContent: {
-    paddingHorizontal: spacing.screenPadding,
-    gap: spacing.sm,
-  },
-  filterPill: {
+  filterChip: {
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
-    borderRadius: 999,
+    borderRadius: radii.pill,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  filterPillActive: {
+  filterChipActive: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
-  filterText: {
+  filterChipText: {
     fontSize: 13,
     fontWeight: typography.fontWeight.medium,
     color: colors.textSecondary,
   },
-  filterTextActive: {
+  filterChipTextActive: {
     color: colors.textInverse,
+    fontWeight: typography.fontWeight.semibold,
   },
-  alertList: {
-    flex: 1,
-  },
-  alertListContent: {
-    paddingHorizontal: spacing.screenPadding,
+  alertsList: {
+    gap: spacing.md,
     paddingBottom: spacing.xxl,
   },
   alertCard: {
-    marginBottom: spacing.md,
+    borderRadius: radii.card,
   },
-  alertContent: {
+  alertRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
   },
-  alertIconContainer: {
+  iconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginRight: spacing.md,
   },
-  alertTextContainer: {
+  alertContent: {
     flex: 1,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 3,
   },
   alertTitle: {
     fontSize: 15,
     fontWeight: typography.fontWeight.semibold,
     color: colors.textPrimary,
-    marginBottom: spacing.xs,
+    flex: 1,
+    marginRight: spacing.sm,
+  },
+  timestamp: {
+    fontSize: 12,
+    color: colors.textMuted,
   },
   alertDescription: {
     fontSize: 13,
     color: colors.textSecondary,
-    marginBottom: spacing.xs,
   },
-  alertTimestamp: {
-    fontSize: 11,
-    color: colors.textMuted,
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.xxl * 2,
+    gap: spacing.sm,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.textPrimary,
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    paddingHorizontal: spacing.xl,
   },
 });

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenContainer } from '../../components/ui/ScreenContainer';
@@ -8,6 +8,7 @@ import { Badge } from '../../components/ui/Badge';
 import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing } from '../../constants/spacing';
+import { radii } from '../../constants/radii';
 import { sensorService } from '../../services/sensorService';
 import { SensorDevice } from '../../types';
 
@@ -19,41 +20,98 @@ export default function SensorStatusScreen() {
     sensorService.getSensorDevices().then(setSensors);
   }, []);
 
+  const getSensorIcon = (metric: string) => {
+    switch (metric) {
+      case 'temperature':
+        return <Ionicons name="thermometer-outline" size={20} color={colors.metrics.temperature} />;
+      case 'soilMoisture':
+        return <Ionicons name="water-outline" size={20} color={colors.metrics.humidity} />;
+      case 'ph':
+        return <Ionicons name="flask-outline" size={20} color={colors.metrics.ph} />;
+      case 'tds':
+        return <Ionicons name="speedometer-outline" size={20} color={colors.metrics.tds} />;
+      case 'light':
+        return <Ionicons name="sunny-outline" size={20} color={colors.metrics.light} />;
+      case 'camera':
+        return <Ionicons name="camera-outline" size={20} color={colors.primary} />;
+      default:
+        return <Ionicons name="hardware-chip-outline" size={20} color={colors.primary} />;
+    }
+  };
+
+  const getSensorIconBg = (metric: string) => {
+    switch (metric) {
+      case 'temperature':
+        return '#FEE2E2';
+      case 'soilMoisture':
+        return '#E0F2FE';
+      case 'ph':
+        return '#F3E8FF';
+      case 'tds':
+        return '#CCFBF1';
+      case 'light':
+        return '#FEF3C7';
+      case 'camera':
+        return colors.primaryMuted;
+      default:
+        return colors.backgroundSecondary;
+    }
+  };
+
   return (
     <ScreenContainer scroll={true} padding={true}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
-        </TouchableOpacity>
-        <Text style={styles.title}>Sensor Status</Text>
-        <TouchableOpacity onPress={() => router.push('/sensors/add')}>
-          <Ionicons name="add" size={26} color={colors.primary} />
-        </TouchableOpacity>
+        <View style={styles.headerLeft}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <Text style={styles.title}>Sensor Status</Text>
+        </View>
+
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.actionIcon}
+            onPress={() => router.push('/sensors/add')}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="add-circle-outline" size={24} color={colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionIcon}
+            onPress={() => router.push('/ai/camera')}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="scan-outline" size={22} color={colors.textPrimary} />
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Summary Banner */}
-      <Card variant="default" padding="medium" style={styles.summaryCard}>
-        <View style={styles.summaryRow}>
-          <Ionicons name="checkmark-circle" size={28} color={colors.status.healthy.primary} />
-          <View style={styles.summaryTextContainer}>
-            <Text style={styles.summaryTitle}>All systems operational</Text>
-            <Text style={styles.summarySubtitle}>Last updated: 10:30 AM</Text>
-          </View>
+      {/* Top Health Status Banner */}
+      <View style={styles.statusBanner}>
+        <Ionicons name="checkmark-circle" size={28} color={colors.leafGreen} />
+        <View style={styles.bannerTextContainer}>
+          <Text style={styles.bannerTitle}>All systems operational</Text>
+          <Text style={styles.bannerSubtitle}>Last updated: 10:30 AM</Text>
         </View>
-      </Card>
+      </View>
 
       {/* Sensor List */}
       <View style={styles.sensorList}>
         {sensors.map((sensor) => (
           <Card key={sensor.id} variant="default" padding="medium" style={styles.sensorCard}>
             <View style={styles.sensorRow}>
-              <View style={styles.sensorIconContainer}>
-                <Ionicons name="hardware-chip-outline" size={22} color={colors.primary} />
+              <View
+                style={[
+                  styles.sensorIconContainer,
+                  { backgroundColor: getSensorIconBg(sensor.metric) },
+                ]}
+              >
+                {getSensorIcon(sensor.metric)}
               </View>
 
               <View style={styles.sensorInfo}>
@@ -61,7 +119,12 @@ export default function SensorStatusScreen() {
                 <Text style={styles.sensorType}>{sensor.type}</Text>
               </View>
 
-              <Badge status={sensor.status === 'active' ? 'healthy' : 'warning'} label={sensor.status.toUpperCase()} />
+              <Badge
+                status="healthy"
+                label="Active"
+                variant="subtle"
+                style={styles.activeBadge}
+              />
             </View>
           </Card>
         ))}
@@ -76,50 +139,69 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: spacing.sm,
-    marginBottom: spacing.xl,
+    marginBottom: spacing.lg,
   },
-  backButton: {},
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  backButton: {
+    padding: spacing.xs,
+  },
   title: {
-    fontSize: typography.fontSize.navTitle,
+    fontSize: typography.fontSize.screenTitle,
     fontWeight: typography.fontWeight.bold,
     color: colors.textPrimary,
   },
-  summaryCard: {
-    marginBottom: spacing.xl,
-    backgroundColor: colors.status.healthy.background,
-    borderColor: colors.status.healthy.border,
-  },
-  summaryRow: {
+  headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: spacing.sm,
   },
-  summaryTextContainer: {
-    marginLeft: spacing.md,
+  actionIcon: {
+    padding: spacing.xs,
   },
-  summaryTitle: {
+  statusBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8F5E9',
+    borderWidth: 1,
+    borderColor: '#C8E6C9',
+    borderRadius: radii.card,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    marginBottom: spacing.lg,
+    gap: spacing.md,
+  },
+  bannerTextContainer: {
+    flex: 1,
+  },
+  bannerTitle: {
     fontSize: 15,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.status.healthy.text,
+    fontWeight: typography.fontWeight.bold,
+    color: '#1B5E20',
   },
-  summarySubtitle: {
+  bannerSubtitle: {
     fontSize: 12,
-    color: colors.status.healthy.text,
-    opacity: 0.8,
+    color: '#388E3C',
+    marginTop: 2,
   },
   sensorList: {
     gap: spacing.md,
     paddingBottom: spacing.xxl,
   },
-  sensorCard: {},
+  sensorCard: {
+    borderRadius: radii.card,
+  },
   sensorRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   sensorIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.primaryMuted,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing.md,
@@ -131,10 +213,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: typography.fontWeight.semibold,
     color: colors.textPrimary,
+    marginBottom: 2,
   },
   sensorType: {
     fontSize: 12,
     color: colors.textSecondary,
-    marginTop: 2,
+  },
+  activeBadge: {
+    paddingHorizontal: spacing.md,
   },
 });

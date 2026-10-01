@@ -1,26 +1,68 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenContainer } from '../../components/ui/ScreenContainer';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
+import { SingleMetricChart } from '../../components/charts/SingleMetricChart';
 import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing } from '../../constants/spacing';
+import { radii } from '../../constants/radii';
 import { sensorService } from '../../services/sensorService';
 import { TelemetrySummary, MetricType } from '../../types';
+
+const { width } = Dimensions.get('window');
+
+const ALL_METRICS: { key: MetricType; label: string }[] = [
+  { key: 'temperature', label: 'Temperature' },
+  { key: 'humidity', label: 'Humidity' },
+  { key: 'soilMoisture', label: 'Soil Moisture' },
+  { key: 'ph', label: 'Soil pH' },
+  { key: 'tds', label: 'TDS' },
+  { key: 'light', label: 'Light' },
+];
+
+const TIME_RANGES = ['30m', '1H', '6H', '24H', '7D'];
 
 export default function LiveDataScreen() {
   const { metric } = useLocalSearchParams<{ metric: MetricType }>();
   const router = useRouter();
+
+  const [activeMetric, setActiveMetric] = useState<MetricType>(metric || 'temperature');
   const [data, setData] = useState<TelemetrySummary | null>(null);
+  const [activeRange, setActiveRange] = useState('1H');
+  const [showMetricPicker, setShowMetricPicker] = useState(false);
 
   useEffect(() => {
     if (metric) {
-      sensorService.getTelemetryByMetric(metric).then(setData);
+      setActiveMetric(metric);
     }
   }, [metric]);
+
+  useEffect(() => {
+    sensorService.getTelemetryByMetric(activeMetric).then(setData);
+  }, [activeMetric]);
+
+  const getMetricAccentColor = (m: MetricType) => {
+    switch (m) {
+      case 'temperature':
+        return colors.leafGreen;
+      case 'humidity':
+        return colors.metrics.humidity;
+      case 'soilMoisture':
+        return colors.metrics.soilMoisture;
+      case 'ph':
+        return colors.metrics.ph;
+      case 'tds':
+        return colors.metrics.tds;
+      case 'light':
+        return colors.metrics.light;
+      default:
+        return colors.leafGreen;
+    }
+  };
 
   return (
     <ScreenContainer scroll={true} padding={true}>
@@ -34,62 +76,152 @@ export default function LiveDataScreen() {
           <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.title}>Live Data</Text>
-        <View style={{ width: 24 }} />
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => router.push('/(tabs)/analytics')}
+        >
+          <Ionicons name="sparkles-outline" size={22} color={colors.textPrimary} />
+        </TouchableOpacity>
       </View>
 
-      {/* Main Metric Card */}
-      <Card variant="default" padding="large" style={styles.mainCard}>
-        <View style={styles.metricHeader}>
-          <Text style={styles.metricName}>{data?.name || 'Metric'}</Text>
-          {data && <Badge status={data.status} label={data.statusLabel} />}
-        </View>
+      {/* Metric Selector Dropdown Pill */}
+      <View style={styles.dropdownWrapper}>
+        <TouchableOpacity
+          style={styles.dropdownButton}
+          onPress={() => setShowMetricPicker(!showMetricPicker)}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.dropdownText}>{data?.name || 'Temperature'}</Text>
+          <Ionicons
+            name={showMetricPicker ? 'chevron-up' : 'chevron-down'}
+            size={18}
+            color={colors.textSecondary}
+          />
+        </TouchableOpacity>
 
-        <Text style={styles.largeValue}>
-          {data?.currentValue || '--'}
-          <Text style={styles.unitText}> {data?.unit || ''}</Text>
-        </Text>
+        {showMetricPicker && (
+          <Card variant="elevated" padding="small" style={styles.dropdownMenu}>
+            {ALL_METRICS.map((item) => (
+              <TouchableOpacity
+                key={item.key}
+                style={[
+                  styles.dropdownItem,
+                  activeMetric === item.key && styles.dropdownItemActive,
+                ]}
+                onPress={() => {
+                  setActiveMetric(item.key);
+                  setShowMetricPicker(false);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.dropdownItemText,
+                    activeMetric === item.key && styles.dropdownItemTextActive,
+                  ]}
+                >
+                  {item.label}
+                </Text>
+                {activeMetric === item.key && (
+                  <Ionicons name="checkmark" size={16} color={colors.primary} />
+                )}
+              </TouchableOpacity>
+            ))}
+          </Card>
+        )}
+      </View>
 
-        <View style={styles.placeholderChart}>
-          <Text style={styles.chartText}>📈 Live Trend Graph</Text>
-          <Text style={styles.chartSubtext}>
-            Interactive SVG chart will be implemented here
+      {/* Live Value & Status Header */}
+      <View style={styles.valueRow}>
+        <View style={styles.valueGroup}>
+          <Text style={styles.largeValue}>
+            {data?.currentValue !== undefined ? data.currentValue : '--'}
+            <Text style={styles.unitText}> {data?.unit || ''}</Text>
           </Text>
+          {data && (
+            <Badge
+              status={data.status}
+              label={data.statusLabel}
+              variant="subtle"
+              style={styles.valueBadge}
+            />
+          )}
         </View>
+
+        <TouchableOpacity style={styles.moreOptionsButton}>
+          <Ionicons name="ellipsis-horizontal" size={20} color={colors.textSecondary} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Real SVG Trend Chart Card */}
+      <Card variant="default" padding="medium" style={styles.chartCard}>
+        <SingleMetricChart
+          data={data?.trend || []}
+          timestamps={data?.timestamps || []}
+          color={getMetricAccentColor(activeMetric)}
+          height={200}
+          width={width - spacing.screenPadding * 2 - spacing.md * 2}
+          unit={data?.unit}
+        />
       </Card>
 
-      {/* Stats Row */}
+      {/* Time Range Filter Pills */}
+      <View style={styles.timeRangeContainer}>
+        {TIME_RANGES.map((range) => {
+          const isActive = activeRange === range;
+          return (
+            <TouchableOpacity
+              key={range}
+              style={[styles.rangePill, isActive && styles.rangePillActive]}
+              onPress={() => setActiveRange(range)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.rangeText, isActive && styles.rangeTextActive]}>
+                {range}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {/* 3 Stats in a Row (Min / Max / Avg) */}
       <View style={styles.statsRow}>
-        <Card variant="subtle" padding="medium" style={styles.statCard}>
+        <Card variant="default" padding="medium" style={styles.statCard}>
+          <Text style={styles.statValue}>
+            {data?.min ?? '--'}
+            <Text style={styles.statUnit}> {data?.unit || ''}</Text>
+          </Text>
           <Text style={styles.statLabel}>Min</Text>
-          <Text style={styles.statValue}>
-            {data?.min || '--'} {data?.unit}
-          </Text>
         </Card>
-        <Card variant="subtle" padding="medium" style={styles.statCard}>
+
+        <Card variant="default" padding="medium" style={styles.statCard}>
+          <Text style={styles.statValue}>
+            {data?.max ?? '--'}
+            <Text style={styles.statUnit}> {data?.unit || ''}</Text>
+          </Text>
           <Text style={styles.statLabel}>Max</Text>
-          <Text style={styles.statValue}>
-            {data?.max || '--'} {data?.unit}
-          </Text>
         </Card>
-        <Card variant="subtle" padding="medium" style={styles.statCard}>
-          <Text style={styles.statLabel}>Avg</Text>
+
+        <Card variant="default" padding="medium" style={styles.statCard}>
           <Text style={styles.statValue}>
-            {data?.avg || '--'} {data?.unit}
+            {data?.avg ?? '--'}
+            <Text style={styles.statUnit}> {data?.unit || ''}</Text>
           </Text>
+          <Text style={styles.statLabel}>Avg</Text>
         </Card>
       </View>
 
-      {/* Optimal Range Card */}
+      {/* Bottom Optimal Range Card */}
       <Card variant="default" padding="medium" style={styles.optimalCard}>
-        <View style={styles.optimalRow}>
-          <Ionicons name="leaf" size={24} color={colors.leafGreen} />
-          <View style={styles.optimalTextContainer}>
-            <Text style={styles.optimalTitle}>Optimal Range</Text>
-            <Text style={styles.optimalRange}>
-              {data?.optimalMin} {data?.unit} – {data?.optimalMax} {data?.unit}
-            </Text>
-            <Text style={styles.optimalSubtext}>{data?.optimalText}</Text>
-          </View>
+        <View style={styles.optimalIconCircle}>
+          <Ionicons name="leaf" size={22} color={colors.leafGreen} />
+        </View>
+        <View style={styles.optimalTextGroup}>
+          <Text style={styles.optimalTitle}>
+            Optimal Range: {data?.optimalMin ?? 20}{data?.unit || '°C'} – {data?.optimalMax ?? 30}{data?.unit || '°C'}
+          </Text>
+          <Text style={styles.optimalSubtitle}>
+            {data?.optimalText || 'For healthy growth'}
+          </Text>
         </View>
       </Card>
     </ScreenContainer>
@@ -102,57 +234,140 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: spacing.sm,
-    marginBottom: spacing.xl,
+    marginBottom: spacing.lg,
   },
-  backButton: {},
+  backButton: {
+    padding: spacing.xs,
+  },
   title: {
     fontSize: typography.fontSize.navTitle,
     fontWeight: typography.fontWeight.bold,
     color: colors.textPrimary,
   },
-  mainCard: {
-    marginBottom: spacing.lg,
+  actionButton: {
+    padding: spacing.xs,
   },
-  metricHeader: {
+  dropdownWrapper: {
+    position: 'relative',
+    zIndex: 10,
+    marginBottom: spacing.md,
+  },
+  dropdownButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignSelf: 'flex-start',
+    gap: spacing.sm,
+    shadowColor: colors.shadowColor,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  dropdownText: {
+    fontSize: 15,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.textPrimary,
+  },
+  dropdownMenu: {
+    position: 'absolute',
+    top: 44,
+    left: 0,
+    width: 200,
+    zIndex: 20,
+    borderRadius: radii.card,
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.sm,
+  },
+  dropdownItemActive: {
+    backgroundColor: colors.primaryMuted,
+  },
+  dropdownItemText: {
+    fontSize: 14,
+    color: colors.textPrimary,
+    fontWeight: typography.fontWeight.medium,
+  },
+  dropdownItemTextActive: {
+    color: colors.primary,
+    fontWeight: typography.fontWeight.bold,
+  },
+  valueRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.sm,
+    marginBottom: spacing.md,
   },
-  metricName: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    fontWeight: typography.fontWeight.medium,
+  valueGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
   },
   largeValue: {
-    fontSize: typography.fontSize.largeMetric,
+    fontSize: 34,
     fontWeight: typography.fontWeight.bold,
     color: colors.textPrimary,
-    marginBottom: spacing.lg,
   },
   unitText: {
-    fontSize: 18,
-    fontWeight: typography.fontWeight.regular,
+    fontSize: 22,
+    fontWeight: typography.fontWeight.medium,
     color: colors.textSecondary,
   },
-  placeholderChart: {
-    height: 180,
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: 12,
+  valueBadge: {
+    marginTop: 2,
+  },
+  moreOptionsButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  chartText: {
-    fontSize: 16,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.textPrimary,
-    marginBottom: spacing.xs,
+  chartCard: {
+    marginBottom: spacing.lg,
+    overflow: 'hidden',
   },
-  chartSubtext: {
-    fontSize: 12,
+  timeRangeContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surface,
+    borderRadius: radii.pill,
+    padding: 4,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  rangePill: {
+    flex: 1,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+    borderRadius: radii.pill,
+  },
+  rangePillActive: {
+    backgroundColor: colors.primary,
+  },
+  rangeText: {
+    fontSize: 13,
+    fontWeight: typography.fontWeight.medium,
     color: colors.textSecondary,
-    textAlign: 'center',
+  },
+  rangeTextActive: {
+    color: colors.textInverse,
+    fontWeight: typography.fontWeight.semibold,
   },
   statsRow: {
     flexDirection: 'row',
@@ -162,40 +377,56 @@ const styles = StyleSheet.create({
   statCard: {
     flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.md,
+  },
+  statValue: {
+    fontSize: 17,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.textPrimary,
+    marginBottom: 2,
+  },
+  statUnit: {
+    fontSize: 12,
+    fontWeight: typography.fontWeight.regular,
+    color: colors.textSecondary,
   },
   statLabel: {
     fontSize: 12,
-    color: colors.textSecondary,
-    marginBottom: 2,
-  },
-  statValue: {
-    fontSize: 16,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.textPrimary,
+    color: colors.textMuted,
+    fontWeight: typography.fontWeight.medium,
   },
   optimalCard: {
-    marginBottom: spacing.xxl,
-  },
-  optimalRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#EBF5ED',
+    borderWidth: 1,
+    borderColor: '#CBE5D2',
+    borderRadius: radii.card,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.xxl,
   },
-  optimalTextContainer: {
-    marginLeft: spacing.md,
+  optimalIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.md,
+  },
+  optimalTextGroup: {
+    flex: 1,
   },
   optimalTitle: {
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-  optimalRange: {
-    fontSize: 16,
-    fontWeight: typography.fontWeight.bold,
+    fontSize: 15,
+    fontWeight: typography.fontWeight.semibold,
     color: colors.textPrimary,
-    marginTop: 2,
+    marginBottom: 2,
   },
-  optimalSubtext: {
-    fontSize: 12,
-    color: colors.leafGreen,
-    marginTop: 2,
+  optimalSubtitle: {
+    fontSize: 13,
+    color: colors.textSecondary,
   },
 });
