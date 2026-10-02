@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { File, Paths } from 'expo-file-system';
 import { mockScans, mockCameraCapture } from '../data/mock/mockScans';
 import { mockRecommendations } from '../data/mock/mockRecommendations';
 import { AIScan, CameraCapture, RecommendationItem, ScanDiagnosisResponse } from '../types';
@@ -46,10 +47,17 @@ export const aiService = {
         const fileBlob = blob.type ? blob : new Blob([blob], { type: mimeType });
         formData.append('file', fileBlob, filename);
       } else {
-        // React Native (iOS/Android): use {uri, name, type} object
-        // RN's FormData does not support Blob or the 3-arg append signature
+        // React Native (iOS/Android): use {uri, name, type} object.
+        // RN's FormData only supports local file:// URIs — remote https:// URLs
+        // must be downloaded to a local temp file first via expo-file-system SDK 57.
+        let localUri = imageUri;
+        if (imageUri.startsWith('http://') || imageUri.startsWith('https://')) {
+          const tempFile = new File(Paths.cache, `leaf_upload_${Date.now()}.jpg`);
+          const downloaded = await File.downloadFileAsync(imageUri, tempFile, { idempotent: true });
+          localUri = downloaded.uri;
+        }
         formData.append('file', {
-          uri: imageUri,
+          uri: localUri,
           name: filename,
           type: mimeType,
         } as any);

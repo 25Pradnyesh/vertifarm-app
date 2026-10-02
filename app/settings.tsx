@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Switch, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Switch, Alert, ScrollView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenContainer } from '../components/ui/ScreenContainer';
@@ -15,18 +15,29 @@ export default function SettingsScreen() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const currentUser = authService.getCurrentUser();
 
-  const handleLogout = () => {
-    Alert.alert('Sign Out', 'Are you sure you want to log out of your VertiFarm account?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Logout',
-        style: 'destructive',
-        onPress: async () => {
-          await authService.logout();
-          router.replace('/(auth)/login');
+  const handleLogout = async () => {
+    // Alert.alert with button callbacks does not work reliably on Expo Web;
+    // use window.confirm for web and native Alert for iOS/Android.
+    if (Platform.OS === 'web') {
+      const confirmed = typeof window !== 'undefined' &&
+        window.confirm('Are you sure you want to log out of your VertiFarm account?');
+      if (confirmed) {
+        await authService.logout();
+        router.replace('/(auth)/login');
+      }
+    } else {
+      Alert.alert('Sign Out', 'Are you sure you want to log out of your VertiFarm account?', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            await authService.logout();
+            router.replace('/(auth)/login');
+          },
         },
-      },
-    ]);
+      ]);
+    }
   };
 
   return (

@@ -119,7 +119,9 @@ export default function LoginScreen() {
     // If Google OAuth credentials are not set up in .env yet, inform the user
     if (!isGoogleConfigured) {
       setErrorMessage(
-        'Google OAuth is not configured. Please set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID (or platform client ID) in your .env file.'
+        'Google OAuth is not configured. Add your Google Cloud OAuth Client ID to ' +
+        'EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID in the .env file. ' +
+        'See .env.example for setup instructions.'
       );
       return;
     }
@@ -293,7 +295,7 @@ export default function LoginScreen() {
         <View style={styles.oauthNoticeContainer}>
           <Ionicons name="information-circle-outline" size={16} color={colors.textSecondary} />
           <Text style={styles.oauthNoticeText}>
-            Google Sign-In is unavailable (OAuth credentials not configured in .env). Sign in using email and password above.
+            Google Sign-In requires OAuth credentials. Copy .env.example to .env and add your Google Cloud Client ID. See .env.example for step-by-step instructions.
           </Text>
         </View>
       )}
