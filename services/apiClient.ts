@@ -27,6 +27,15 @@ export const apiClient = {
   },
 
   /**
+   * Get WebSocket URL for streaming endpoints
+   */
+  getWsUrl(endpoint: string): string {
+    const base = this.getBaseUrl().replace(/^http/, 'ws');
+    return `${base}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+  },
+
+
+  /**
    * Get Authorization headers
    */
   getHeaders(): Record<string, string> {

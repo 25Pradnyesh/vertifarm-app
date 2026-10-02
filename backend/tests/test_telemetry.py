@@ -32,3 +32,16 @@ def test_get_telemetry_by_metric(client, auth_headers):
 def test_get_telemetry_invalid_metric(client, auth_headers):
     response = client.get("/api/v1/telemetry/unknown-metric", headers=auth_headers)
     assert response.status_code == 404
+
+def test_get_latest_telemetry(client, auth_headers):
+    response = client.get("/api/v1/telemetry/latest", headers=auth_headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list)
+    assert len(data) > 0
+
+def test_get_readings_history(client, auth_headers):
+    response = client.get("/api/v1/telemetry/readings", headers=auth_headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list)

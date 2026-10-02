@@ -174,10 +174,11 @@ The VertiFarm project progresses through 10 structured engineering stages:
 |---|---|---|---|
 | **Stage 1** | Foundation | ✅ **COMPLETE** | Project initialization, Expo SDK 57 setup, Expo Router navigation tree, TypeScript domain models, mock data layer, design tokens, and base UI primitives. |
 | **Stage 2** | UI/UX | ✅ **COMPLETE** | 17 routable screens, custom SVG charts (`SingleMetricChart`, `MultiMetricChart`), botanical design language, card layouts, and responsive screens. |
-| **Stage 3** | OAuth / Authentication | 🚧 **IN PROGRESS** | Client-side Google OAuth 2.0 (`expo-auth-session`), JWT/userinfo decoding, local session persistence, auth guards, and offline mock fallback. |
-| **Stage 4** | Backend & Database | 📋 **PLANNED** | FastAPI REST server, PostgreSQL / Supabase schema, JWT verification, and automated API documentation. |
-| **Stage 5** | IoT & Realtime Telemetry | 📋 **PLANNED** | STM32 edge gateway firmware, MQTT broker (Mosquitto), WebSocket telemetry streaming, and physical sensor drivers. |
+| **Stage 3** | OAuth / Authentication | ✅ **COMPLETE** | Production Google OAuth 2.0 (`expo-auth-session`), JWT/userinfo decoding, persistent local auth session, auth route guards, and offline mock fallback. |
+| **Stage 4** | Backend & Database | ✅ **COMPLETE** | FastAPI REST server, PostgreSQL / Supabase schema, JWT verification, domain models, and mobile API adapter layer (`services/apiClient.ts`). |
+| **Stage 5** | IoT & Realtime Telemetry | ✅ **COMPLETE** | MQTT ingestion pipeline (`mqtt_service.py`), 6-metric validation, deduplication, time-series persistence, WebSockets (`/telemetry/ws`), and mobile real-time adapter. |
 | **Stage 6** | Alerts & Notifications | 📋 **PLANNED** | Dynamic threshold evaluation, debounce engine, and push notifications via Expo Push Notification Service (FCM/APNs). |
+
 | **Stage 7** | AI Plant Health & Camera | 📋 **PLANNED** | ESP32-CAM optical capture pipeline, server-side PyTorch/OpenCV plant disease inference model, and diagnostic reporting. |
 | **Stage 8** | Analytics & Recommendations | 📋 **PLANNED** | Time-series historical data aggregations, yield correlation metrics, and agronomic rule-based guidance engine. |
 | **Stage 9** | Testing & Hardening | 📋 **PLANNED** | End-to-end integration tests, unit test suites, security penetration review, and native secure storage (`expo-secure-store`). |

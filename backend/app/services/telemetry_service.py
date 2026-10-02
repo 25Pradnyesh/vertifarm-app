@@ -1,6 +1,12 @@
 from typing import List, Optional
+import time
 from app.db.session import db
-from app.schemas.telemetry import TelemetrySummary, FarmHealthStatus
+from app.schemas.telemetry import (
+    TelemetrySummary,
+    FarmHealthStatus,
+    SensorReadingSchema,
+    TelemetryIngestPayload,
+)
 
 class TelemetryService:
     def get_telemetry_summaries(self, user_id: str, farm_id: Optional[str] = None) -> List[TelemetrySummary]:
@@ -80,6 +86,84 @@ class TelemetryService:
         return FarmHealthStatus(
             status="healthy",
             message="All systems are running smoothly.",
+        )
+
+    def get_latest_readings(self, user_id: str, farm_id: Optional[str] = None) -> List[SensorReadingSchema]:
+        """
+        Retrieves latest real-time sensor readings snapshot across metrics for a farm.
+        """
+        target_farm = farm_id or "farm-1"
+        raw_readings = db.get_latest_readings(target_farm)
+        return [
+            SensorReadingSchema(
+                id=r.id,
+                sensor_id=r.sensor_id,
+                farm_id=r.farm_id,
+                metric=r.metric,
+                value=r.value,
+                unit=r.unit,
+                status=r.status, # type: ignore
+                status_label=r.status_label,
+                timestamp=r.timestamp,
+            )
+            for r in raw_readings
+        ]
+
+    def get_readings_history(
+        self,
+        user_id: str,
+        farm_id: Optional[str] = None,
+        metric: Optional[str] = None,
+        limit: int = 50,
+    ) -> List[SensorReadingSchema]:
+        """
+        Retrieves time-series history log of sensor readings.
+        """
+        target_farm = farm_id or "farm-1"
+        raw_readings = db.get_sensor_readings(farm_id=target_farm, metric=metric, limit=limit)
+        return [
+            SensorReadingSchema(
+                id=r.id,
+                sensor_id=r.sensor_id,
+                farm_id=r.farm_id,
+                metric=r.metric,
+                value=r.value,
+                unit=r.unit,
+                status=r.status, # type: ignore
+                status_label=r.status_label,
+                timestamp=r.timestamp,
+            )
+            for r in raw_readings
+        ]
+
+    def ingest_reading(self, payload: TelemetryIngestPayload) -> Optional[SensorReadingSchema]:
+        """
+        Ingests reading through the unified MQTT/HTTP validation and persistence pipeline.
+        """
+        from app.services.mqtt_service import mqtt_service
+
+        recorded = mqtt_service.ingest_reading(
+            sensor_id=payload.sensor_id,
+            metric=payload.metric,
+            value=payload.value,
+            unit=payload.unit,
+            farm_id=payload.farm_id,
+            zone_id=payload.zone_id,
+            timestamp=payload.timestamp,
+        )
+        if not recorded:
+            return None
+
+        return SensorReadingSchema(
+            id=recorded.id,
+            sensor_id=recorded.sensor_id,
+            farm_id=recorded.farm_id,
+            metric=recorded.metric,
+            value=recorded.value,
+            unit=recorded.unit,
+            status=recorded.status, # type: ignore
+            status_label=recorded.status_label,
+            timestamp=recorded.timestamp,
         )
 
 telemetry_service = TelemetryService()

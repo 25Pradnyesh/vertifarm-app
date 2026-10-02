@@ -1,8 +1,24 @@
+import asyncio
 import time
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.api.v1.router import api_router
+from app.services.mqtt_service import mqtt_service
+from app.services.realtime_service import realtime_service
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Bind running event loop to realtime service
+    loop = asyncio.get_running_loop()
+    realtime_service.set_loop(loop)
+
+    # Start MQTT background ingestion service if MQTT_ENABLED=true
+    mqtt_service.start()
+    yield
+    # Stop MQTT background ingestion service
+    mqtt_service.stop()
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -11,7 +27,9 @@ app = FastAPI(
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     docs_url=f"{settings.API_V1_STR}/docs",
     redoc_url=f"{settings.API_V1_STR}/redoc",
+    lifespan=lifespan,
 )
+
 
 # Configure CORS
 app.add_middleware(

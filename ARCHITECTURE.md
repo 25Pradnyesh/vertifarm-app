@@ -13,8 +13,10 @@ As of today, the project exists as a **client-side mobile application** built on
 - **Authentication:** Google OAuth 2.0 authentication is implemented on the client via `expo-auth-session`, paired with local session persistence and an email/password authentication fallback for offline development.
 - **Design System:** A cohesive botanical design system is codified through centralized design tokens (`constants/`) and reusable UI primitives (`components/ui/` and `components/charts/`).
 - **Backend & Database Foundation (Stage 4):** A dedicated Python FastAPI backend (`backend/app/`) with PostgreSQL / Supabase schema (`backend/app/db/schema.sql`), Pydantic models, user ownership isolation, and mobile API adapter (`services/apiClient.ts`).
+- **IoT & Realtime Telemetry (Stage 5):** Unified telemetry ingestion pipeline: Sensors / ESP32 → MQTT Broker → FastAPI MQTT Ingestion (`backend/app/services/mqtt_service.py`) → PostgreSQL / Supabase time-series persistence (`sensor_readings`) → REST + Realtime WebSockets (`backend/app/services/realtime_service.py`) → VertiFarm Mobile App (`services/sensorService.ts`).
 
 The architecture is explicitly constructed to establish clean boundaries between the presentation layer, the domain models, and data access. Services interface with the FastAPI backend when `EXPO_PUBLIC_API_URL` is configured, while retaining offline mock data fallback for development.
+
 
 
 ---
@@ -523,13 +525,15 @@ The table below contrasts the current, fully verified state of the codebase agai
 | Layer | Current (Implemented Today) | Planned (Future Architecture) |
 |---|---|---|
 | **Mobile UI** | React Native 0.86, Expo SDK 57, Expo Router v57, TypeScript 6.0, custom SVG charting (`react-native-svg`), botanical design tokens. | Production mobile app on Google Play Store & Apple App Store; offline synchronization, native secure storage, haptic feedback. |
-| **Authentication** | Client-side Google OAuth 2.0 via `expo-auth-session`, client-side JWT/userinfo decoding, local session storage, mock email/password. | Backend-verified Google OAuth tokens; FastAPI JWT session cookies and refresh tokens; Supabase Auth integration; Role-Based Access Control (RBAC). |
-| **API** | None. Simulated asynchronous service layer with mock delays (150ms–1000ms) in `services/`. Base URL mapped in `config.ts`. | FastAPI RESTful API with automated OpenAPI docs; WebSocket endpoints for real-time telemetry streaming; rate limiting and API key security. |
-| **Database** | None. In-memory static mock datasets located in `data/mock/` (`mockTelemetry`, `mockSensors`, `mockAlerts`, `mockScans`, `mockFarms`). | PostgreSQL / Supabase; relational schema for farms, zones, sensors, and users; TimescaleDB or time-series partitions for sensor telemetry. |
-| **IoT** | Simulated hardware profiles in `mockSensors.ts` (DHT22, Capacitive, Analog pH, Analog TDS, BH1750, ESP32-CAM). | STM32 microcontroller edge nodes reading physical analog/digital sensors; RS485/Modbus or I2C sensor bus; local calibration and failsafes. |
-| **MQTT** | None. Telemetry arrays read statically from memory. | Eclipse Mosquitto or EMQX MQTT broker; TLS-encrypted topics (`farms/{farm_id}/sensors/{sensor_id}`); QoS 1 telemetry publishing. |
-| **AI** | Pre-generated diagnostic entries in `mockScans.ts` (Leaf Spot 92.6%, Powdery Mildew 87.3%, Healthy 98.1%). | Server-side Python inference pipeline (FastAPI + PyTorch/ONNX/TensorFlow); OpenCV leaf segmentation; real-time confidence classification. |
-| **Notifications** | Client-side UI badges and alert list filtered in memory by `alertService`. | Push notifications via Expo Push Notification Service (FCM/APNs) triggered by backend threshold breach evaluators. |
+| **Authentication** | Client-side Google OAuth 2.0 (`expo-auth-session`), local session storage, FastAPI token verification & offline dev authentication. | Backend session cookies and refresh token rotators; Supabase Auth production synchronization. |
+| **API** | FastAPI RESTful API (`backend/app/`) with automated OpenAPI docs, auth guards, telemetry endpoints, and WebSockets. | Multi-instance load balancing, external API rate limiting, and automated health telemetry. |
+| **Database** | PostgreSQL / Supabase schema (`schema.sql`) with user isolation, RLS policies, and in-memory transactional database (`db/session.py`). | Live Supabase PostgreSQL managed cluster with automated migration pipelines. |
+| **IoT & Ingestion** | Full ingestion pipeline: `vertifarm/{farm_id}/{sensor_id}/telemetry`, validation of 6 metrics, physical bounds checks, deduplication, and DB persistence. | STM32 / ESP32 physical edge hardware deployment with local calibration and fail-safes. |
+| **MQTT** | Paho-MQTT v2 client service (`mqtt_service.py`) supporting single and batch payloads, configurable broker, and background loop. | Managed Eclipse Mosquitto or cloud EMQX broker cluster with mTLS client certificates. |
+| **Realtime** | WebSocket streaming (`/api/v1/telemetry/ws`), async event queues (`realtime_service.py`), and mobile client WebSocket adapter. | Supabase Realtime CDC replication and automated edge mesh notifications. |
+| **AI** | Pre-generated diagnostic entries in `mockScans.ts` and FastAPI AI scan models. | Server-side Python inference pipeline (FastAPI + PyTorch/ONNX/TensorFlow); OpenCV leaf segmentation. |
+| **Notifications** | Client-side UI badges, alert center, and backend alert resolution APIs. | Push notifications via Expo Push Notification Service (FCM/APNs) triggered by dynamic threshold breach engine. |
+
 
 ---
 

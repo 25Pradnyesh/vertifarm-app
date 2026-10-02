@@ -6,6 +6,7 @@ from app.models.domain import (
     Farm,
     Zone,
     Sensor,
+    SensorReading,
     TelemetryPoint,
     Alert,
     AIScan,
@@ -15,8 +16,8 @@ from app.models.domain import (
 
 class InMemoryDatabase:
     """
-    Database repository implementing the PostgreSQL/Supabase schema for Stage 4.
-    Enforces user isolation, foreign key relationships, and seed hydration.
+    Database repository implementing the PostgreSQL/Supabase schema for Stage 4 & 5.
+    Enforces user isolation, foreign key relationships, seed hydration, and IoT telemetry persistence.
     """
     def __init__(self):
         self.users: Dict[str, User] = {}
@@ -28,8 +29,11 @@ class InMemoryDatabase:
         self.camera_captures: Dict[str, CameraCapture] = {}
         self.recommendations: Dict[str, Recommendation] = {}
         self.telemetry_summaries: Dict[str, Dict[str, TelemetryPoint]] = {} # farm_id -> metric -> TelemetryPoint
+        self.sensor_readings: List[SensorReading] = []
+        self.latest_readings: Dict[str, Dict[str, SensorReading]] = {} # farm_id -> metric -> SensorReading
         
         self._seed_default_data()
+
 
     def _seed_default_data(self):
         # Default seed user
@@ -205,7 +209,34 @@ class InMemoryDatabase:
             ),
         }
 
+        # Seed initial sensor readings from telemetry summaries
+        farm1_readings = [
+            ("s-1", "temperature", 32.6, "°C", "healthy", "Normal"),
+            ("s-1", "humidity", 65.4, "%", "healthy", "Normal"),
+            ("s-2", "soilMoisture", 48.0, "%", "healthy", "Normal"),
+            ("s-3", "ph", 6.58, "pH", "healthy", "Slightly Acidic"),
+            ("s-4", "tds", 620.0, "ppm", "healthy", "Normal"),
+            ("s-5", "light", 1200.0, "Lux", "healthy", "Optimal"),
+        ]
+        self.latest_readings[farm1_id] = {}
+        for sid, metric, val, unit, stat, label in farm1_readings:
+            reading = SensorReading(
+                id=f"read-{metric}-init",
+                sensor_id=sid,
+                farm_id=farm1_id,
+                metric=metric,
+                value=val,
+                unit=unit,
+                status=stat,
+                status_label=label,
+                timestamp="2025-01-15T10:00:00Z",
+                zone_id=zone1_id,
+            )
+            self.sensor_readings.append(reading)
+            self.latest_readings[farm1_id][metric] = reading
+
         # Seed alerts
+
         self.alerts["alert-1"] = Alert(
             id="alert-1",
             farm_id=farm1_id,
@@ -365,6 +396,125 @@ class InMemoryDatabase:
         )
 
         return new_user
+
+    def record_reading(self, reading: SensorReading) -> SensorReading:
+        """
+        Persists a validated sensor reading, updates historical trend,
+        updates the latest snapshot, updates farm telemetry summary,
+        and refreshes the sensor device status.
+        """
+        # 1. Append to time-series log
+        self.sensor_readings.append(reading)
+
+        # 2. Update latest snapshot map
+        if reading.farm_id not in self.latest_readings:
+            self.latest_readings[reading.farm_id] = {}
+        self.latest_readings[reading.farm_id][reading.metric] = reading
+
+        # 3. Update telemetry summary
+        if reading.farm_id not in self.telemetry_summaries:
+            self.telemetry_summaries[reading.farm_id] = {}
+
+        formatted_time = time.strftime("%I:%M %p")
+        summary = self.telemetry_summaries[reading.farm_id].get(reading.metric)
+
+        if summary:
+            summary.current_value = reading.value
+            summary.unit = reading.unit
+            summary.status = reading.status
+            if reading.status_label:
+                summary.status_label = reading.status_label
+            summary.min_val = min(summary.min_val, reading.value)
+            summary.max_val = max(summary.max_val, reading.value)
+            summary.trend.append(reading.value)
+            if len(summary.trend) > 24:
+                summary.trend = summary.trend[-24:]
+            summary.timestamps.append(formatted_time)
+            if len(summary.timestamps) > 24:
+                summary.timestamps = summary.timestamps[-24:]
+            summary.avg_val = round(sum(summary.trend) / len(summary.trend), 2)
+        else:
+            name_map = {
+                "temperature": "Temperature",
+                "humidity": "Humidity",
+                "soilMoisture": "Soil Moisture",
+                "ph": "Soil pH",
+                "tds": "TDS",
+                "light": "Light Intensity",
+            }
+            optimal_map = {
+                "temperature": (20.0, 30.0, "For healthy growth"),
+                "humidity": (60.0, 80.0, "For healthy growth"),
+                "soilMoisture": (40.0, 60.0, "For healthy growth"),
+                "ph": (6.0, 7.0, "For healthy growth"),
+                "tds": (500.0, 800.0, "For healthy growth"),
+                "light": (1000.0, 2000.0, "Optimal light for photosynthesis"),
+            }
+            opt_min, opt_max, opt_text = optimal_map.get(
+                reading.metric, (0.0, 100.0, "Optimal range")
+            )
+            self.telemetry_summaries[reading.farm_id][reading.metric] = TelemetryPoint(
+                metric=reading.metric,
+                name=name_map.get(reading.metric, reading.metric.capitalize()),
+                current_value=reading.value,
+                unit=reading.unit,
+                status=reading.status,
+                status_label=reading.status_label or "Normal",
+                min_val=reading.value,
+                max_val=reading.value,
+                avg_val=reading.value,
+                optimal_min=opt_min,
+                optimal_max=opt_max,
+                optimal_text=opt_text,
+                trend=[reading.value],
+                timestamps=[formatted_time],
+            )
+
+        # 4. Refresh sensor device state
+        sensor = self.sensors.get(reading.sensor_id)
+        if sensor:
+            sensor.last_seen = formatted_time
+            sensor.status = "active"
+        else:
+            if reading.farm_id in self.farms:
+                zone_id = reading.zone_id or "z-1"
+                self.sensors[reading.sensor_id] = Sensor(
+                    id=reading.sensor_id,
+                    farm_id=reading.farm_id,
+                    zone_id=zone_id,
+                    zone_name="Zone 1",
+                    name=f"{reading.metric.capitalize()} Sensor",
+                    type="Telemetry-IoT",
+                    metric=reading.metric,
+                    status="active",
+                    last_seen=formatted_time,
+                    battery_level=100,
+                )
+
+        return reading
+
+    def get_latest_readings(self, farm_id: str) -> List[SensorReading]:
+        """
+        Returns the latest recorded reading for each metric for a farm.
+        """
+        farm_map = self.latest_readings.get(farm_id) or self.latest_readings.get("farm-1", {})
+        return list(farm_map.values())
+
+    def get_sensor_readings(
+        self,
+        farm_id: Optional[str] = None,
+        metric: Optional[str] = None,
+        limit: int = 50,
+    ) -> List[SensorReading]:
+        """
+        Retrieves recent historical sensor readings with optional farm/metric filters.
+        """
+        results = self.sensor_readings
+        if farm_id:
+            results = [r for r in results if r.farm_id == farm_id]
+        if metric:
+            results = [r for r in results if r.metric == metric]
+        return results[-limit:]
 
 # Global database singleton
 db = InMemoryDatabase()

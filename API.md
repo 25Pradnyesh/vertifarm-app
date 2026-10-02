@@ -435,7 +435,7 @@ Where exact request or response fields have not yet been defined by project spec
 #### `GET /api/v1/telemetry/summary`
 - **Purpose:** Fetches the latest 24-hour summary and current readings across all 6 environmental parameters.
 - **Authentication:** Required (Bearer JWT).
-- **Query Parameters:** `farm_id` (optional string), `zone_id` (optional string).
+- **Query Parameters:** `farmId` (optional string).
 - **Response Shape:** Array of [TelemetrySummary](file:///d:/farm-app/types/index.ts#L58-L73) objects:
   ```json
   [
@@ -457,41 +457,97 @@ Where exact request or response fields have not yet been defined by project spec
     }
   ]
   ```
-- **Status:** `PLANNED — NOT IMPLEMENTED`
+- **Status:** `✅ IMPLEMENTED (Stage 4 & 5)`
 
-#### `GET /api/v1/telemetry/{metric}`
-- **Purpose:** Fetches time-series trend points and statistical summaries for a specific metric over a defined time range.
+#### `GET /api/v1/telemetry/health`
+- **Purpose:** Evaluates all telemetry metrics to report high-level farm health status.
 - **Authentication:** Required (Bearer JWT).
-- **Path Parameters:** `metric` (string: `temperature` | `humidity` | `soilMoisture` | `ph` | `tds` | `light`).
-- **Query Parameters:** `range` (string: `30m` | `1H` | `6H` | `24H` | `7D` | `30D`), `zone_id` (optional string).
-- **Response Shape:** Single [TelemetrySummary](file:///d:/farm-app/types/index.ts#L58-L73) object.
-- **Status:** `PLANNED — NOT IMPLEMENTED`
-
-#### `POST /api/v1/telemetry`
-- **Purpose:** Internal or edge ingest endpoint to record raw sensor readings from gateway microcontrollers.
-- **Authentication:** Edge Device API Key or Gateway Certificate.
-- **Request Body:**
-  ```json
-  {
-    "device_id": "string",
-    "timestamp": "string",
-    "readings": [
-      {
-        "metric": "temperature",
-        "value": 32.6,
-        "unit": "°C"
-      }
-    ]
-  }
-  ```
+- **Query Parameters:** `farmId` (optional string).
 - **Response Shape:**
   ```json
   {
-    "acknowledged": true,
-    "recorded": 1
+    "status": "healthy",
+    "message": "All systems are running smoothly."
   }
   ```
-- **Status:** `PLANNED — NOT IMPLEMENTED`
+- **Status:** `✅ IMPLEMENTED (Stage 4 & 5)`
+
+#### `GET /api/v1/telemetry/latest`
+- **Purpose:** Fetches the latest real-time reading snapshot for each metric.
+- **Authentication:** Required (Bearer JWT).
+- **Query Parameters:** `farmId` (optional string).
+- **Response Shape:**
+  ```json
+  [
+    {
+      "id": "read-temp-init",
+      "sensorId": "s-1",
+      "farmId": "farm-1",
+      "metric": "temperature",
+      "value": 32.6,
+      "unit": "°C",
+      "status": "healthy",
+      "statusLabel": "Normal",
+      "timestamp": "2026-10-02T10:00:00Z"
+    }
+  ]
+  ```
+- **Status:** `✅ IMPLEMENTED (Stage 5)`
+
+#### `GET /api/v1/telemetry/readings`
+- **Purpose:** Fetches raw historical telemetry readings with optional metric and limit filters.
+- **Authentication:** Required (Bearer JWT).
+- **Query Parameters:** `farmId` (optional string), `metric` (optional string), `limit` (optional integer, default 50).
+- **Response Shape:** Array of `SensorReadingSchema` objects.
+- **Status:** `✅ IMPLEMENTED (Stage 5)`
+
+#### `GET /api/v1/telemetry/{metric}`
+- **Purpose:** Fetches time-series trend points and statistical summaries for a specific metric.
+- **Authentication:** Required (Bearer JWT).
+- **Path Parameters:** `metric` (string: `temperature` | `humidity` | `soilMoisture` | `ph` | `tds` | `light`).
+- **Query Parameters:** `range` (string: `24H`), `farmId` (optional string).
+- **Response Shape:** Single [TelemetrySummary](file:///d:/farm-app/types/index.ts#L58-L73) object.
+- **Status:** `✅ IMPLEMENTED (Stage 4 & 5)`
+
+#### `POST /api/v1/telemetry/ingest`
+- **Purpose:** HTTP ingestion endpoint for edge gateways or microcontrollers. Shares identical validation, physical bounds checks, deduplication, and persistence logic with MQTT.
+- **Authentication:** Public / Gateway API Key.
+- **Request Body:**
+  ```json
+  {
+    "sensorId": "s-1",
+    "farmId": "farm-1",
+    "metric": "temperature",
+    "value": 26.5,
+    "unit": "°C",
+    "timestamp": "2026-10-02T10:00:00Z"
+  }
+  ```
+- **Response Shape:** Persisted `SensorReadingSchema` object with status code `201 Created`.
+- **Status:** `✅ IMPLEMENTED (Stage 5)`
+
+#### `WebSocket /api/v1/telemetry/ws`
+- **Purpose:** Real-time push stream delivering incoming telemetry readings to connected mobile clients.
+- **Protocol:** WebSocket (`ws://` or `wss://`).
+- **Message Format:**
+  ```json
+  {
+    "type": "telemetry_reading",
+    "data": {
+      "id": "read-abc12345",
+      "sensorId": "s-1",
+      "farmId": "farm-1",
+      "metric": "temperature",
+      "value": 26.5,
+      "unit": "°C",
+      "status": "healthy",
+      "statusLabel": "Normal",
+      "timestamp": "2026-10-02T10:00:00Z"
+    }
+  }
+  ```
+- **Status:** `✅ IMPLEMENTED (Stage 5)`
+
 
 ---
 
@@ -675,43 +731,77 @@ When the FastAPI backend is implemented, all error responses will conform to sta
 
 ---
 
-## 8. Realtime / MQTT
+## 8. Realtime / MQTT (Stage 5 — Implemented)
 
-The VertiFarm platform relies on a dual-protocol architecture separating low-bandwidth hardware communications from client presentation:
+The VertiFarm platform features a dual-protocol architecture separating low-bandwidth hardware telemetry ingestion from mobile presentation:
 
 ### 8.1 REST API (Request-Response)
 - **Role:** Initial screen hydration, historical trend queries (24H/7D/30D), alert acknowledgement/resolution, configuration updates, and authenticated user profile management.
 - **Protocol:** HTTPS (TLS 1.3).
 - **Format:** JSON.
 
-### 8.2 MQTT Protocol (Edge Ingestion — Planned)
-- **Role:** Periodic ingestion of environmental metrics from the STM32 edge gateway to the cloud broker.
-- **Broker:** Eclipse Mosquitto or EMQX.
-- **Transport:** TLS-secured MQTT (port 8883) or WebSocket MQTT.
-- **Sampling Frequency:** Every 30 seconds per STM32 cluster (PRD Section 6.2).
+### 8.2 MQTT Ingestion Pipeline (`backend/app/services/mqtt_service.py`)
+- **Role:** Real-time periodic telemetry ingestion from IoT sensor gateways (ESP32/STM32) into the FastAPI backend.
+- **Client Engine:** `paho-mqtt` v2 with `CallbackAPIVersion.VERSION2`.
+- **Broker Configuration:**
+  - `MQTT_ENABLED`: Boolean toggle (default: `false` for offline tests, `true` for live broker).
+  - `MQTT_BROKER_HOST`: Hostname or IP of MQTT broker (default: `localhost`).
+  - `MQTT_BROKER_PORT`: Broker port (default: `1883`, or `8883` for TLS).
+  - `MQTT_USERNAME` / `MQTT_PASSWORD`: Optional broker credentials.
+  - `MQTT_TOPIC_PREFIX`: Topic namespace prefix (default: `vertifarm`).
+  - `MQTT_CLIENT_ID`: Backend MQTT client identifier.
 - **Topic Hierarchy:**
-  - `vertifarm/{farm_id}/{zone_id}/telemetry` — Standard periodic sensor payload.
-  - `vertifarm/{farm_id}/heartbeat` — Periodic gateway connectivity ping (PRD Section 6.3).
-  - `vertifarm/{farm_id}/actuators/{command}` — Downlink commands for automated actuation (irrigation, ventilation).
-- **Sample MQTT Telemetry Payload (PRD Section 6.2):**
-  ```json
-  {
-    "device_uid": "STM32-GW-01",
-    "zone_id": "z-1",
-    "timestamp": 1727784000,
-    "temperature": 32.6,
-    "humidity": 65.4,
-    "soil_moisture": 48.0,
-    "ph": 6.58,
-    "tds": 620,
-    "lux": 1200
-  }
-  ```
+  - `vertifarm/{farm_id}/{sensor_id}/telemetry` — Single sensor reading payload.
+  - `vertifarm/{farm_id}/telemetry` — Farm batch telemetry payload.
+  - `vertifarm/{farm_id}/{zone_id}/telemetry` — Zone batch telemetry payload.
+  - Subscription pattern: `vertifarm/#` (QoS 1).
+- **Supported Environmental Metrics & Physical Limits:**
+  - `temperature`: -40.0 to 100.0 °C (aliases: `temp`)
+  - `humidity`: 0.0 to 100.0 % (aliases: `hum`)
+  - `soilMoisture`: 0.0 to 100.0 % (aliases: `soil_moisture`, `moisture`)
+  - `ph`: 0.0 to 14.0 pH
+  - `tds`: 0.0 to 5000.0 ppm
+  - `light`: 0.0 to 150000.0 Lux (aliases: `lux`)
+- **Sample Ingest Payloads:**
+  - Single reading:
+    ```json
+    {
+      "sensor_id": "s-1",
+      "farm_id": "farm-1",
+      "metric": "temperature",
+      "value": 26.5,
+      "unit": "°C",
+      "timestamp": "2026-10-02T10:00:00Z"
+    }
+    ```
+  - Multi-reading batch:
+    ```json
+    {
+      "farm_id": "farm-1",
+      "zone_id": "z-1",
+      "readings": [
+        {"sensor_id": "s-1", "metric": "temperature", "value": 26.5, "unit": "°C"},
+        {"sensor_id": "s-2", "metric": "humidity", "value": 68.0, "unit": "%"}
+      ]
+    }
+    ```
+- **Payload Safety & Deduplication:**
+  - Safe UTF-8 and JSON decoding prevents crashes on malformed edge messages.
+  - Non-numeric or out-of-bounds readings are rejected with structured warnings.
+  - Sliding-window hash cache (`(farm_id, sensor_id, metric, round(value, 2), timestamp)`) filters QoS 1 duplicate deliveries.
+  - Automatic agronomic evaluation computes `status` (`healthy`, `warning`, `critical`) and `status_label`.
+  - Readings are persisted to `sensor_readings`, summaries are updated, and real-time events are dispatched.
 
-### 8.3 Mobile Realtime Updates (Planned)
-- **Role:** Instantly updating dashboard metrics and pushing critical alert notifications to active mobile sessions without requiring manual screen refreshes.
-- **Protocol:** WebSockets or Supabase Realtime subscriptions.
-- **Trigger:** Whenever the backend ingests and commits a new telemetry batch from MQTT, it broadcasts the updated `TelemetrySummary` delta to connected clients.
+### 8.3 Realtime Streaming & Mobile Subscriptions
+- **Protocol:** WebSockets via `GET /api/v1/telemetry/ws`.
+- **Backend Service:** `backend/app/services/realtime_service.py` maintains client queues and broadcasts `telemetry_reading` events whenever new readings are ingested via MQTT or HTTP.
+- **Mobile Adapter:** `services/sensorService.ts:subscribeToTelemetry()` establishes a live WebSocket connection to receive pushed readings with automatic JSON decoding and farm filtering.
+- **Supabase Realtime Architecture:**
+  - In production deployments, PostgreSQL table `sensor_readings` publishes to `supabase_realtime`:
+    ```sql
+    ALTER PUBLICATION supabase_realtime ADD TABLE sensor_readings;
+    ```
+  - Mobile clients can subscribe directly via `supabase.channel('public:sensor_readings')` for push-based edge synchronization.
 
 ---
 
@@ -758,9 +848,10 @@ The table below summarizes the operational status of all major system capabiliti
 | **Authentication** | [authService.ts](file:///d:/farm-app/services/authService.ts) (Client Google OAuth + Mock Email) | FastAPI OAuth Token Verification (`/api/v1/auth/*`) | ✅ Implemented (Client & Backend Stage 4) |
 | **Farms** | [farmService.ts](file:///d:/farm-app/services/farmService.ts) (Mock + API Adapter) | FastAPI CRUD (`/api/v1/farms`) | ✅ Implemented (Stage 4 Foundation) |
 | **Sensors** | [sensorService.ts](file:///d:/farm-app/services/sensorService.ts) (Mock + API Adapter) | FastAPI Device Management (`/api/v1/sensors`) | ✅ Implemented (Stage 4 Foundation) |
-| **Telemetry** | [sensorService.ts](file:///d:/farm-app/services/sensorService.ts) (Mock + API Adapter) | FastAPI Telemetry Summaries (`/api/v1/telemetry/*`) | ✅ Implemented (Stage 4 Foundation) |
+| **Telemetry** | [sensorService.ts](file:///d:/farm-app/services/sensorService.ts) (Mock + API Adapter) | FastAPI Telemetry Summaries & Latest (`/api/v1/telemetry/*`) | ✅ Implemented (Stage 4 & Stage 5 IoT) |
+| **MQTT Ingestion** | None (Edge Protocol) | Paho-MQTT Ingestion Worker (`backend/app/services/mqtt_service.py`) | ✅ Implemented (Stage 5 IoT) |
+| **Realtime Stream** | [sensorService.ts](file:///d:/farm-app/services/sensorService.ts) (`subscribeToTelemetry`) | FastAPI WebSockets (`/api/v1/telemetry/ws`) & Pub/Sub | ✅ Implemented (Stage 5 IoT & Realtime) |
 | **Alerts** | [alertService.ts](file:///d:/farm-app/services/alertService.ts) (Mock + API Adapter) | FastAPI Alerts & Resolution (`/api/v1/alerts/*`) | ✅ Implemented (Stage 4 Foundation) |
 | **AI Scan** | [aiService.ts](file:///d:/farm-app/services/aiService.ts) (Mock + API Adapter) | FastAPI Diagnostic Scans (`/api/v1/ai/*`) | ✅ Implemented (Stage 4 Foundation) |
 | **Recommendations** | [aiService.ts](file:///d:/farm-app/services/aiService.ts) (Mock + API Adapter) | FastAPI Recommendations (`/api/v1/recommendations`) | ✅ Implemented (Stage 4 Foundation) |
-| **Realtime Stream** | None (Static Poll on Mount) | WebSockets / MQTT Streaming | Planned / Not Implemented |
 | **Push Alerts** | None (In-App Badges Only) | Expo Push Notification Service (APNs/FCM) | Planned / Not Implemented |

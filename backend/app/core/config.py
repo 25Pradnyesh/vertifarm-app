@@ -40,4 +40,14 @@ class Settings:
     SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
     SUPABASE_SERVICE_ROLE_KEY: str = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 
+    # MQTT Broker Configuration
+    MQTT_ENABLED: bool = os.getenv("MQTT_ENABLED", "false").lower() in ("true", "1", "yes")
+    MQTT_BROKER_HOST: str = os.getenv("MQTT_BROKER_HOST", "localhost")
+    MQTT_BROKER_PORT: int = int(os.getenv("MQTT_BROKER_PORT", "1883"))
+    MQTT_USERNAME: str = os.getenv("MQTT_USERNAME", "")
+    MQTT_PASSWORD: str = os.getenv("MQTT_PASSWORD", "")
+    MQTT_CLIENT_ID: str = os.getenv("MQTT_CLIENT_ID", "vertifarm-fastapi-backend")
+    MQTT_TOPIC_PREFIX: str = os.getenv("MQTT_TOPIC_PREFIX", "vertifarm")
+    MQTT_KEEPALIVE: int = int(os.getenv("MQTT_KEEPALIVE", "60"))
+
 settings = Settings()
