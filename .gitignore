@@ -65,3 +65,8 @@ htmlcov/
 
 # Review Contact Sheets (Generated)
 dataset_review/contact_sheets/
+
+# Processed Dataset Images & ML Model Weights
+dataset_processed/
+*.pth
+*.pt

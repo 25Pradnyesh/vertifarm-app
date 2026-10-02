@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import { AuthSessionResult } from 'expo-auth-session';
 import { AuthUser } from '../types';
 import { config } from '../constants/config';
+import { apiClient } from './apiClient';
 
 const STORAGE_KEY = '@vertifarm_user_session';
 
@@ -225,6 +226,18 @@ export const authService = {
       const stored = storage.getItem(STORAGE_KEY);
       if (stored) {
         currentUserSession = JSON.parse(stored) as AuthUser;
+        // If stored session lacks an accessToken and backend is reachable, re-authenticate
+        if (!currentUserSession.accessToken && apiClient.isConfigured() && currentUserSession.email) {
+          try {
+            const res = await apiClient.post<{ access_token: string; user: AuthUser }>('/auth/login', {
+              email: currentUserSession.email,
+            });
+            currentUserSession.accessToken = res.access_token;
+            storage.setItem(STORAGE_KEY, JSON.stringify(currentUserSession));
+          } catch (e) {
+            console.warn('[authService] Could not auto-refresh access token on restore:', e);
+          }
+        }
         return currentUserSession;
       }
     } catch (err) {
@@ -310,6 +323,32 @@ export const authService = {
         throw new Error('Could not retrieve verified Google account identity. Please try again.');
       }
 
+      // If backend is configured, exchange Google ID token for authenticated backend JWT session
+      if (apiClient.isConfigured() && idToken) {
+        try {
+          const backendRes = await apiClient.post<{
+            access_token: string;
+            token_type: string;
+            user: AuthUser;
+          }>('/auth/google', { id_token: idToken });
+
+          const user: AuthUser = {
+            ...backendRes.user,
+            accessToken: backendRes.access_token,
+            idToken,
+            avatarUrl: avatarUrl || backendRes.user.avatarUrl,
+            authProvider: 'google',
+          };
+          await this.saveSession(user);
+          return user;
+        } catch (backendErr) {
+          console.warn('[authService] Backend Google auth exchange failed:', backendErr);
+          if (!config.demoMode) {
+            throw backendErr;
+          }
+        }
+      }
+
       const user: AuthUser = {
         id: googleId,
         googleId,
@@ -319,7 +358,7 @@ export const authService = {
         role: 'Farm Owner',
         farmName: 'Greenhouse Alpha',
         authProvider: 'google',
-        accessToken: accessToken || undefined,
+        accessToken: accessToken || 'test-token',
         idToken: idToken || undefined,
         createdAt: new Date().toISOString(),
       };
@@ -332,13 +371,43 @@ export const authService = {
   },
 
   /**
-   * Mock Email/Password Login
-   * Simulates network authentication and saves session
+   * Email/Password Login
+   * Authenticates against FastAPI backend and saves authenticated JWT session
    */
-  async loginWithEmail(email: string, _password?: string): Promise<AuthUser> {
-    await new Promise((resolve) => setTimeout(resolve, 250));
+  async loginWithEmail(email: string, password?: string): Promise<AuthUser> {
+    const trimmedEmail = email.trim() || 'operator@vertifarm.io';
 
-    const trimmedEmail = email.trim();
+    if (apiClient.isConfigured()) {
+      try {
+        const response = await apiClient.post<{
+          access_token: string;
+          token_type: string;
+          user: AuthUser;
+        }>('/auth/login', {
+          email: trimmedEmail,
+          password: password || undefined,
+        });
+
+        const authUser: AuthUser = {
+          ...response.user,
+          accessToken: response.access_token,
+          authProvider: 'email',
+        };
+
+        await this.saveSession(authUser);
+        return authUser;
+      } catch (err: any) {
+        if (!config.demoMode) {
+          throw err;
+        }
+        console.warn('[authService] Backend login failed, falling back to demo mode:', err);
+      }
+    } else if (!config.demoMode && !__DEV__) {
+      throw new Error('API backend is not configured. Please set EXPO_PUBLIC_API_URL or run the backend.');
+    }
+
+    // Explicit demo / offline mode
+    await new Promise((resolve) => setTimeout(resolve, 250));
     const displayName = trimmedEmail
       ? trimmedEmail.split('@')[0].charAt(0).toUpperCase() + trimmedEmail.split('@')[0].slice(1)
       : 'VertiFarm Operator';
@@ -346,10 +415,11 @@ export const authService = {
     const profile: AuthUser = {
       id: `usr-email-${Date.now()}`,
       name: displayName,
-      email: trimmedEmail || 'operator@vertifarm.io',
+      email: trimmedEmail,
       role: 'Farm Manager',
       farmName: 'Greenhouse 1',
       authProvider: 'email',
+      accessToken: 'test-token',
       createdAt: new Date().toISOString(),
     };
 
@@ -358,15 +428,45 @@ export const authService = {
   },
 
   /**
-   * Mock Email Signup
-   * Registers a new account session locally
+   * Email Signup
+   * Registers a new account with the backend and saves authenticated JWT session
    */
-  async signupWithEmail(name: string, email: string, _password?: string): Promise<AuthUser> {
-    await new Promise((resolve) => setTimeout(resolve, 250));
-
+  async signupWithEmail(name: string, email: string, password?: string): Promise<AuthUser> {
     const trimmedEmail = email.trim();
     const trimmedName = name.trim() || (trimmedEmail ? trimmedEmail.split('@')[0] : 'VertiFarm Grower');
 
+    if (apiClient.isConfigured()) {
+      try {
+        const response = await apiClient.post<{
+          access_token: string;
+          token_type: string;
+          user: AuthUser;
+        }>('/auth/signup', {
+          name: trimmedName,
+          email: trimmedEmail,
+          password: password || undefined,
+        });
+
+        const authUser: AuthUser = {
+          ...response.user,
+          accessToken: response.access_token,
+          authProvider: 'email',
+        };
+
+        await this.saveSession(authUser);
+        return authUser;
+      } catch (err: any) {
+        if (!config.demoMode) {
+          throw err;
+        }
+        console.warn('[authService] Backend signup failed, falling back to demo mode:', err);
+      }
+    } else if (!config.demoMode && !__DEV__) {
+      throw new Error('API backend is not configured. Please set EXPO_PUBLIC_API_URL or run the backend.');
+    }
+
+    // Explicit demo / offline mode
+    await new Promise((resolve) => setTimeout(resolve, 250));
     const profile: AuthUser = {
       id: `usr-signup-${Date.now()}`,
       name: trimmedName,
@@ -374,6 +474,7 @@ export const authService = {
       role: 'Farm Owner',
       farmName: 'Greenhouse Alpha',
       authProvider: 'email',
+      accessToken: 'test-token',
       createdAt: new Date().toISOString(),
     };
 

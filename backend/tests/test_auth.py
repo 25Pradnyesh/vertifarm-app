@@ -51,3 +51,41 @@ def test_update_current_user_profile(client, auth_headers):
     data = response.json()
     assert data["name"] == "Updated Grower Name"
     assert data["farmName"] == "Hydroponic Delta"
+
+
+def test_protected_endpoints_require_auth(client):
+    """Ensure all core protected endpoints strictly reject unauthenticated requests with 401."""
+    endpoints = [
+        "/api/v1/telemetry/summary",
+        "/api/v1/telemetry/health",
+        "/api/v1/telemetry/latest",
+        "/api/v1/farms",
+        "/api/v1/sensors",
+        "/api/v1/ai/scans",
+        "/api/v1/ai/camera/status",
+    ]
+    for ep in endpoints:
+        res = client.get(ep)
+        assert res.status_code == 401, f"Expected 401 for unauthenticated request to {ep}, got {res.status_code}"
+        assert "Authentication credentials were not provided" in res.json()["detail"]
+
+
+def test_login_token_authorizes_protected_endpoints(client):
+    """Verify that token received from /auth/login successfully authenticates protected calls."""
+    login_res = client.post("/api/v1/auth/login", json={"email": "operator@vertifarm.io"})
+    assert login_res.status_code == 200
+    token = login_res.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    summary_res = client.get("/api/v1/telemetry/summary", headers=headers)
+    assert summary_res.status_code == 200
+
+    scans_res = client.get("/api/v1/ai/scans", headers=headers)
+    assert scans_res.status_code == 200
+
+
+def test_google_auth_invalid_token(client):
+    """Verify that Google OAuth endpoint rejects invalid/tampered ID tokens."""
+    res = client.post("/api/v1/auth/google", json={"id_token": "tampered-unverified-token"})
+    assert res.status_code == 400
+    assert "Google authentication failed" in res.json()["detail"]

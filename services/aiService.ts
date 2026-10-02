@@ -1,15 +1,106 @@
+import { Platform } from 'react-native';
 import { mockScans, mockCameraCapture } from '../data/mock/mockScans';
 import { mockRecommendations } from '../data/mock/mockRecommendations';
-import { AIScan, CameraCapture, RecommendationItem } from '../types';
+import { AIScan, CameraCapture, RecommendationItem, ScanDiagnosisResponse } from '../types';
+import { config } from '../constants/config';
 import { apiClient } from './apiClient';
 
 /**
  * AI Service
  * Abstraction layer for AI plant health and camera monitoring.
- * Interacts with FastAPI backend when configured; falls back to mock data.
+ * Interacts with FastAPI backend when configured; falls back to mock data only in explicit demo mode.
  */
 
 export const aiService = {
+  /**
+   * Diagnose a plant leaf image by uploading to the FastAPI AI disease classifier
+   */
+  async diagnoseImage(
+    imageUri: string,
+    options?: { filename?: string; mimeType?: string; farmId?: string }
+  ): Promise<ScanDiagnosisResponse> {
+    if (apiClient.isConfigured()) {
+      const filename =
+        options?.filename ||
+        imageUri.split('/').pop()?.split('?')[0] ||
+        'leaf_scan.jpg';
+      const extension = filename.split('.').pop()?.toLowerCase();
+      let mimeType = options?.mimeType || 'image/jpeg';
+      if (extension === 'png') mimeType = 'image/png';
+      else if (extension === 'webp') mimeType = 'image/webp';
+
+      const formData = new FormData();
+
+      if (Platform.OS === 'web') {
+        // Web: fetch URI as blob and append with filename
+        let blob: Blob;
+        try {
+          const res = await fetch(imageUri);
+          if (!res.ok) {
+            throw new Error(`Failed to load image: HTTP ${res.status} ${res.statusText}`);
+          }
+          blob = await res.blob();
+        } catch (err: any) {
+          throw new Error(`Could not process leaf image for diagnosis: ${err?.message || err}`);
+        }
+        const fileBlob = blob.type ? blob : new Blob([blob], { type: mimeType });
+        formData.append('file', fileBlob, filename);
+      } else {
+        // React Native (iOS/Android): use {uri, name, type} object
+        // RN's FormData does not support Blob or the 3-arg append signature
+        formData.append('file', {
+          uri: imageUri,
+          name: filename,
+          type: mimeType,
+        } as any);
+      }
+
+      if (options?.farmId) {
+        formData.append('farm_id', options.farmId);
+      }
+
+      return await apiClient.postMultipart<ScanDiagnosisResponse>('/ai/scans/diagnose', formData);
+    }
+
+    if (!config.demoMode) {
+      throw new Error(
+        'Backend API is not configured. Please set EXPO_PUBLIC_API_URL or run the backend server.'
+      );
+    }
+
+    // Explicit demo mode fallback only when EXPO_PUBLIC_DEMO_MODE=true
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    const isFenugreek = Math.random() > 0.5;
+    return {
+      id: `scan-mock-${Date.now()}`,
+      plantType: isFenugreek ? 'Fenugreek' : 'Coriander',
+      diseaseName: 'Healthy',
+      isHealthy: true,
+      confidence: 94.2,
+      imageUrl: imageUri,
+      timestamp: 'Just now',
+      recommendations: [
+        'Foliage demonstrates strong chlorophyll density and healthy leaf morphology.',
+        'Maintain current EC, pH, and photoperiod targets.',
+      ],
+      predictedCrop: isFenugreek ? 'Fenugreek' : 'Coriander',
+      predictedDisease: 'Healthy',
+      rawClass: isFenugreek ? 'fenugreek_healthy' : 'coriander_healthy',
+      isUncertain: false,
+      uncertaintyMessage: null,
+      topPredictions: [
+        {
+          class_name: isFenugreek ? 'fenugreek_healthy' : 'coriander_healthy',
+          crop: isFenugreek ? 'Fenugreek' : 'Coriander',
+          disease: 'Healthy',
+          is_healthy: true,
+          confidence: 94.2,
+        },
+      ],
+      thresholdApplied: 0.6,
+    };
+  },
+
   /**
    * Get recent AI scans
    */
@@ -18,8 +109,13 @@ export const aiService = {
       try {
         return await apiClient.get<AIScan[]>('/ai/scans');
       } catch (err) {
-        console.warn('[aiService] getRecentScans API failed, falling back to mock:', err);
+        if (!config.demoMode) {
+          throw err;
+        }
+        console.warn('[aiService] getRecentScans API failed, falling back to demo mode:', err);
       }
+    } else if (!config.demoMode && !__DEV__) {
+      throw new Error('API backend is not configured.');
     }
     await new Promise((resolve) => setTimeout(resolve, 250));
     return mockScans;
@@ -32,9 +128,17 @@ export const aiService = {
     if (apiClient.isConfigured()) {
       try {
         return await apiClient.get<AIScan>(`/ai/scans/${id}`);
-      } catch (err) {
-        console.warn(`[aiService] getScanById API failed for ${id}, falling back to mock:`, err);
+      } catch (err: any) {
+        if (err?.message?.includes('404')) {
+          return null;
+        }
+        if (!config.demoMode) {
+          throw err;
+        }
+        console.warn(`[aiService] getScanById API failed for ${id}, falling back to demo mode:`, err);
       }
+    } else if (!config.demoMode && !__DEV__) {
+      throw new Error('API backend is not configured.');
     }
     await new Promise((resolve) => setTimeout(resolve, 150));
     return mockScans.find((scan) => scan.id === id) || null;
@@ -48,8 +152,13 @@ export const aiService = {
       try {
         return await apiClient.get<CameraCapture>('/ai/camera/status');
       } catch (err) {
-        console.warn('[aiService] getCameraStatus API failed, falling back to mock:', err);
+        if (!config.demoMode) {
+          throw err;
+        }
+        console.warn('[aiService] getCameraStatus API failed, falling back to demo mode:', err);
       }
+    } else if (!config.demoMode && !__DEV__) {
+      throw new Error('API backend is not configured.');
     }
     await new Promise((resolve) => setTimeout(resolve, 200));
     return mockCameraCapture;
@@ -64,8 +173,13 @@ export const aiService = {
         await apiClient.post<{ queued: boolean; job_id: string }>('/ai/camera/capture');
         return true;
       } catch (err) {
-        console.warn('[aiService] captureImage API failed, falling back to mock:', err);
+        if (!config.demoMode) {
+          throw err;
+        }
+        console.warn('[aiService] captureImage API failed, falling back to demo mode:', err);
       }
+    } else if (!config.demoMode && !__DEV__) {
+      throw new Error('API backend is not configured.');
     }
     await new Promise((resolve) => setTimeout(resolve, 1000));
     console.log('Manual camera capture triggered');
@@ -81,8 +195,13 @@ export const aiService = {
         const query = tab ? `?tab=${tab}` : '';
         return await apiClient.get<RecommendationItem[]>(`/recommendations${query}`);
       } catch (err) {
-        console.warn('[aiService] getRecommendations API failed, falling back to mock:', err);
+        if (!config.demoMode) {
+          throw err;
+        }
+        console.warn('[aiService] getRecommendations API failed, falling back to demo mode:', err);
       }
+    } else if (!config.demoMode && !__DEV__) {
+      throw new Error('API backend is not configured.');
     }
     await new Promise((resolve) => setTimeout(resolve, 200));
 

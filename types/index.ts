@@ -88,6 +88,14 @@ export interface AlertItem {
   recommendation: string;
 }
 
+export interface PredictionDetail {
+  class_name: string;
+  crop: string;
+  disease: string;
+  is_healthy: boolean;
+  confidence: number;
+}
+
 export interface AIScan {
   id: string;
   plantType: string;
@@ -97,6 +105,16 @@ export interface AIScan {
   imageUrl: string;
   timestamp: string;
   recommendations: string[];
+}
+
+export interface ScanDiagnosisResponse extends AIScan {
+  predictedCrop: string;
+  predictedDisease: string;
+  rawClass: string;
+  isUncertain: boolean;
+  uncertaintyMessage?: string | null;
+  topPredictions: PredictionDetail[];
+  thresholdApplied: number;
 }
 
 export interface CameraCapture {

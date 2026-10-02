@@ -1,11 +1,12 @@
 import { mockFarms } from '../data/mock/mockFarms';
 import { Farm } from '../types';
+import { config } from '../constants/config';
 import { apiClient } from './apiClient';
 
 /**
  * Farm Service
  * Abstraction layer for farm management data.
- * Interacts with FastAPI backend when configured; falls back to mock data.
+ * Interacts with FastAPI backend when configured; falls back to mock data only in explicit demo mode.
  */
 
 export const farmService = {
@@ -17,8 +18,13 @@ export const farmService = {
       try {
         return await apiClient.get<Farm[]>('/farms');
       } catch (err) {
-        console.warn('[farmService] API request failed, falling back to mock:', err);
+        if (!config.demoMode) {
+          throw err;
+        }
+        console.warn('[farmService] API request failed, falling back to demo mode:', err);
       }
+    } else if (!config.demoMode && !__DEV__) {
+      throw new Error('API backend is not configured.');
     }
     await new Promise((resolve) => setTimeout(resolve, 200));
     return mockFarms;
@@ -31,9 +37,17 @@ export const farmService = {
     if (apiClient.isConfigured()) {
       try {
         return await apiClient.get<Farm>(`/farms/${id}`);
-      } catch (err) {
-        console.warn(`[farmService] API request failed for farm ${id}, falling back to mock:`, err);
+      } catch (err: any) {
+        if (err?.message?.includes('404')) {
+          return null;
+        }
+        if (!config.demoMode) {
+          throw err;
+        }
+        console.warn(`[farmService] API request failed for farm ${id}, falling back to demo mode:`, err);
       }
+    } else if (!config.demoMode && !__DEV__) {
+      throw new Error('API backend is not configured.');
     }
     await new Promise((resolve) => setTimeout(resolve, 150));
     return mockFarms.find((farm) => farm.id === id) || null;

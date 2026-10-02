@@ -1,6 +1,7 @@
 import { mockTelemetry } from '../data/mock/mockTelemetry';
 import { mockSensors } from '../data/mock/mockSensors';
 import { TelemetrySummary, SensorDevice, SensorReading, MetricType } from '../types';
+import { config } from '../constants/config';
 import { apiClient } from './apiClient';
 
 function getMockLatestReadings(): SensorReading[] {
@@ -20,7 +21,7 @@ function getMockLatestReadings(): SensorReading[] {
 /**
  * Sensor Service
  * Abstraction layer for sensor data.
- * Interacts with FastAPI backend when configured; falls back to mock data.
+ * Interacts with FastAPI backend when configured; falls back to mock data only in explicit demo mode.
  */
 
 export const sensorService = {
@@ -32,8 +33,13 @@ export const sensorService = {
       try {
         return await apiClient.get<TelemetrySummary[]>('/telemetry/summary');
       } catch (err) {
-        console.warn('[sensorService] getTelemetrySummaries API failed, falling back to mock:', err);
+        if (!config.demoMode) {
+          throw err;
+        }
+        console.warn('[sensorService] getTelemetrySummaries API failed, falling back to demo mode:', err);
       }
+    } else if (!config.demoMode && !__DEV__) {
+      throw new Error('API backend is not configured.');
     }
     await new Promise((resolve) => setTimeout(resolve, 300));
     return mockTelemetry;
@@ -46,9 +52,17 @@ export const sensorService = {
     if (apiClient.isConfigured()) {
       try {
         return await apiClient.get<TelemetrySummary>(`/telemetry/${metric}`);
-      } catch (err) {
-        console.warn(`[sensorService] getTelemetryByMetric API failed for ${metric}, falling back to mock:`, err);
+      } catch (err: any) {
+        if (err?.message?.includes('404')) {
+          return null;
+        }
+        if (!config.demoMode) {
+          throw err;
+        }
+        console.warn(`[sensorService] getTelemetryByMetric API failed for ${metric}, falling back to demo mode:`, err);
       }
+    } else if (!config.demoMode && !__DEV__) {
+      throw new Error('API backend is not configured.');
     }
     await new Promise((resolve) => setTimeout(resolve, 200));
     return mockTelemetry.find((t) => t.metric === metric) || null;
@@ -62,8 +76,13 @@ export const sensorService = {
       try {
         return await apiClient.get<SensorDevice[]>('/sensors');
       } catch (err) {
-        console.warn('[sensorService] getSensorDevices API failed, falling back to mock:', err);
+        if (!config.demoMode) {
+          throw err;
+        }
+        console.warn('[sensorService] getSensorDevices API failed, falling back to demo mode:', err);
       }
+    } else if (!config.demoMode && !__DEV__) {
+      throw new Error('API backend is not configured.');
     }
     await new Promise((resolve) => setTimeout(resolve, 200));
     return mockSensors;
@@ -80,8 +99,13 @@ export const sensorService = {
       try {
         return await apiClient.get<{ status: 'healthy' | 'warning' | 'critical'; message: string }>('/telemetry/health');
       } catch (err) {
-        console.warn('[sensorService] getFarmHealthStatus API failed, falling back to mock:', err);
+        if (!config.demoMode) {
+          throw err;
+        }
+        console.warn('[sensorService] getFarmHealthStatus API failed, falling back to demo mode:', err);
       }
+    } else if (!config.demoMode && !__DEV__) {
+      throw new Error('API backend is not configured.');
     }
     await new Promise((resolve) => setTimeout(resolve, 150));
 
@@ -117,8 +141,13 @@ export const sensorService = {
         const query = farmId ? `?farmId=${encodeURIComponent(farmId)}` : '';
         return await apiClient.get<SensorReading[]>(`/telemetry/latest${query}`);
       } catch (err) {
-        console.warn('[sensorService] getLatestReadings API failed, falling back to mock:', err);
+        if (!config.demoMode) {
+          throw err;
+        }
+        console.warn('[sensorService] getLatestReadings API failed, falling back to demo mode:', err);
       }
+    } else if (!config.demoMode && !__DEV__) {
+      throw new Error('API backend is not configured.');
     }
     await new Promise((resolve) => setTimeout(resolve, 200));
     return getMockLatestReadings();
@@ -140,8 +169,13 @@ export const sensorService = {
         params.append('limit', limit.toString());
         return await apiClient.get<SensorReading[]>(`/telemetry/readings?${params.toString()}`);
       } catch (err) {
-        console.warn('[sensorService] getReadingsHistory API failed, falling back to mock:', err);
+        if (!config.demoMode) {
+          throw err;
+        }
+        console.warn('[sensorService] getReadingsHistory API failed, falling back to demo mode:', err);
       }
+    } else if (!config.demoMode && !__DEV__) {
+      throw new Error('API backend is not configured.');
     }
     await new Promise((resolve) => setTimeout(resolve, 200));
     const all = getMockLatestReadings();

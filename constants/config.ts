@@ -7,7 +7,9 @@ export const config = {
     name: 'VertiFarm',
     tagline: 'Monitor. Analyze. Grow Better.',
     version: '1.0.0',
+    demoMode: process.env.EXPO_PUBLIC_DEMO_MODE === 'true',
   },
+  demoMode: process.env.EXPO_PUBLIC_DEMO_MODE === 'true',
 
   api: {
     // To be configured later when backend is ready

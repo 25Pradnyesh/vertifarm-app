@@ -1,5 +1,6 @@
 import os
 import json
+from pathlib import Path
 from typing import List
 from dotenv import load_dotenv
 
@@ -47,7 +48,13 @@ class Settings:
     MQTT_USERNAME: str = os.getenv("MQTT_USERNAME", "")
     MQTT_PASSWORD: str = os.getenv("MQTT_PASSWORD", "")
     MQTT_CLIENT_ID: str = os.getenv("MQTT_CLIENT_ID", "vertifarm-fastapi-backend")
-    MQTT_TOPIC_PREFIX: str = os.getenv("MQTT_TOPIC_PREFIX", "vertifarm")
     MQTT_KEEPALIVE: int = int(os.getenv("MQTT_KEEPALIVE", "60"))
+
+    # AI Model Configuration
+    _default_model = str(Path(__file__).resolve().parent.parent.parent.parent / "models" / "mobilenet_v3_small_plant_disease.pth")
+    _default_metadata = str(Path(__file__).resolve().parent.parent.parent.parent / "models" / "model_metadata.json")
+    AI_MODEL_PATH: str = os.getenv("AI_MODEL_PATH", _default_model)
+    AI_METADATA_PATH: str = os.getenv("AI_METADATA_PATH", _default_metadata)
+    AI_UNCERTAINTY_THRESHOLD: float = float(os.getenv("AI_UNCERTAINTY_THRESHOLD", "0.60"))
 
 settings = Settings()

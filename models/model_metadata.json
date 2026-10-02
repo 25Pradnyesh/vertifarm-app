@@ -1,0 +1,80 @@
+{
+  "model_name": "VertiFarm Plant Disease Classifier",
+  "architecture": "MobileNetV3-Small",
+  "weights_initialization": "MobileNet_V3_Small_Weights.DEFAULT",
+  "num_classes": 6,
+  "class_names": [
+    "coriander_bacterial_blight",
+    "coriander_healthy",
+    "coriander_powdery_mildew",
+    "fenugreek_bacterial_blight",
+    "fenugreek_cercospora_leaf_spot",
+    "fenugreek_healthy"
+  ],
+  "class_to_idx": {
+    "coriander_bacterial_blight": 0,
+    "coriander_healthy": 1,
+    "coriander_powdery_mildew": 2,
+    "fenugreek_bacterial_blight": 3,
+    "fenugreek_cercospora_leaf_spot": 4,
+    "fenugreek_healthy": 5
+  },
+  "crop_mapping": {
+    "coriander_bacterial_blight": {
+      "crop": "Coriander",
+      "disease": "Bacterial Blight",
+      "is_healthy": false
+    },
+    "coriander_healthy": {
+      "crop": "Coriander",
+      "disease": "Healthy",
+      "is_healthy": true
+    },
+    "coriander_powdery_mildew": {
+      "crop": "Coriander",
+      "disease": "Powdery Mildew",
+      "is_healthy": false
+    },
+    "fenugreek_bacterial_blight": {
+      "crop": "Fenugreek",
+      "disease": "Bacterial Blight",
+      "is_healthy": false
+    },
+    "fenugreek_cercospora_leaf_spot": {
+      "crop": "Fenugreek",
+      "disease": "Cercospora Leaf Spot",
+      "is_healthy": false
+    },
+    "fenugreek_healthy": {
+      "crop": "Fenugreek",
+      "disease": "Healthy",
+      "is_healthy": true
+    }
+  },
+  "input_dimensions": [
+    3,
+    224,
+    224
+  ],
+  "normalization": {
+    "mean": [
+      0.485,
+      0.456,
+      0.406
+    ],
+    "std": [
+      0.229,
+      0.224,
+      0.225
+    ]
+  },
+  "padding_strategy": "ImageNet-mean RGB (124, 116, 104) neutral canvas (maps to 0.0 in tensor space)",
+  "training_summary": {
+    "best_epoch": 8,
+    "best_val_f1": 0.8566,
+    "best_val_acc": 0.8556,
+    "total_duration_sec": 111.61,
+    "device": "cpu"
+  },
+  "uncertainty_threshold": 0.6
+}
