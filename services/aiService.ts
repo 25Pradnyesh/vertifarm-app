@@ -1,10 +1,11 @@
 import { Platform } from 'react-native';
-import { File, Paths } from 'expo-file-system';
+import { File, Paths, UploadType } from 'expo-file-system';
 import { mockScans, mockCameraCapture } from '../data/mock/mockScans';
 import { mockRecommendations } from '../data/mock/mockRecommendations';
 import { AIScan, CameraCapture, RecommendationItem, ScanDiagnosisResponse } from '../types';
 import { config } from '../constants/config';
 import { apiClient } from './apiClient';
+import { authService } from './authService';
 
 /**
  * AI Service
@@ -30,8 +31,6 @@ export const aiService = {
       if (extension === 'png') mimeType = 'image/png';
       else if (extension === 'webp') mimeType = 'image/webp';
 
-      const formData = new FormData();
-
       if (Platform.OS === 'web') {
         // Web: fetch URI as blob and append with filename
         let blob: Blob;
@@ -44,30 +43,58 @@ export const aiService = {
         } catch (err: any) {
           throw new Error(`Could not process leaf image for diagnosis: ${err?.message || err}`);
         }
+        const formData = new FormData();
         const fileBlob = blob.type ? blob : new Blob([blob], { type: mimeType });
         formData.append('file', fileBlob, filename);
+        if (options?.farmId) {
+          formData.append('farm_id', options.farmId);
+        }
+        return await apiClient.postMultipart<ScanDiagnosisResponse>('/ai/scans/diagnose', formData);
       } else {
-        // React Native (iOS/Android): use {uri, name, type} object.
-        // RN's FormData only supports local file:// URIs — remote https:// URLs
-        // must be downloaded to a local temp file first via expo-file-system SDK 57.
+        // React Native (iOS/Android): Use expo-file-system native multipart upload.
+        // This streams the file directly via Android OkHttp / iOS NSURLSession, bypassing
+        // React Native's JS FormData bridge serialization that throws "Unsupported FormDataPart implementation".
         let localUri = imageUri;
         if (imageUri.startsWith('http://') || imageUri.startsWith('https://')) {
           const tempFile = new File(Paths.cache, `leaf_upload_${Date.now()}.jpg`);
           const downloaded = await File.downloadFileAsync(imageUri, tempFile, { idempotent: true });
           localUri = downloaded.uri;
         }
-        formData.append('file', {
-          uri: localUri,
-          name: filename,
-          type: mimeType,
-        } as any);
-      }
 
-      if (options?.farmId) {
-        formData.append('farm_id', options.farmId);
-      }
+        const localFile = new File(localUri);
+        const uploadUrl = `${apiClient.getBaseUrl()}/ai/scans/diagnose`;
+        const headers: Record<string, string> = {
+          Accept: 'application/json',
+        };
+        const currentUser = authService.getCurrentUser();
+        if (currentUser?.accessToken) {
+          headers['Authorization'] = `Bearer ${currentUser.accessToken}`;
+        }
 
-      return await apiClient.postMultipart<ScanDiagnosisResponse>('/ai/scans/diagnose', formData);
+        const uploadResult = await localFile.upload(uploadUrl, {
+          httpMethod: 'POST',
+          uploadType: UploadType.MULTIPART,
+          fieldName: 'file',
+          mimeType,
+          parameters: {
+            farm_id: options?.farmId || 'farm-1',
+          },
+          headers,
+        });
+
+        if (uploadResult.status < 200 || uploadResult.status >= 300) {
+          let errorDetail = uploadResult.body;
+          try {
+            const parsed = JSON.parse(uploadResult.body);
+            errorDetail = parsed.detail || parsed.message || uploadResult.body;
+          } catch {
+            // Keep raw body if not JSON
+          }
+          throw new Error(`Diagnosis upload failed (${uploadResult.status}): ${errorDetail}`);
+        }
+
+        return JSON.parse(uploadResult.body) as ScanDiagnosisResponse;
+      }
     }
 
     if (!config.demoMode) {
