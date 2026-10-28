@@ -4,6 +4,8 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { colors } from '../constants/colors';
 import { authService } from '../services/authService';
+import { notificationService } from '../services/notificationService';
+import { sensorAlertMonitor } from '../services/sensorAlertMonitor';
 
 export default function RootLayout() {
   const segments = useSegments();
@@ -11,15 +13,28 @@ export default function RootLayout() {
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
+    notificationService.initialize();
+    notificationService.requestPermissions();
+  }, []);
+
+  useEffect(() => {
     let mounted = true;
     authService.restoreSession().finally(() => {
       if (mounted) {
         setIsReady(true);
+        if (authService.isAuthenticated()) {
+          sensorAlertMonitor.startMonitoring();
+        }
       }
     });
 
     const unsubscribe = authService.onAuthStateChange((user) => {
       if (!mounted) return;
+      if (user) {
+        sensorAlertMonitor.startMonitoring();
+      } else {
+        sensorAlertMonitor.stopMonitoring();
+      }
       const firstSegment = segments[0] as string | undefined;
       if (!firstSegment) return;
       const inAuthGroup = firstSegment === '(auth)';
@@ -33,6 +48,7 @@ export default function RootLayout() {
     return () => {
       mounted = false;
       unsubscribe();
+      sensorAlertMonitor.stopMonitoring();
     };
   }, [segments, router]);
 

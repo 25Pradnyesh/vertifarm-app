@@ -8,20 +8,48 @@ import { apiClient } from './apiClient';
  * Interacts with FastAPI backend when configured; falls back to mock data.
  */
 
+let dynamicAlerts: AlertItem[] = [...mockAlerts];
+
 export const alertService = {
+  /**
+   * Add a locally triggered alert into the service store
+   */
+  addLocalAlert(alert: AlertItem): void {
+    const existingIdx = dynamicAlerts.findIndex((a) => a.id === alert.id);
+    if (existingIdx >= 0) {
+      dynamicAlerts[existingIdx] = alert;
+    } else {
+      dynamicAlerts = [alert, ...dynamicAlerts];
+    }
+  },
+
+  /**
+   * Mark a locally tracked alert as resolved
+   */
+  resolveLocalAlert(id: string): void {
+    const alert = dynamicAlerts.find((a) => a.id === id);
+    if (alert) {
+      alert.isResolved = true;
+    }
+  },
+
   /**
    * Get all alerts
    */
   async getAlerts(): Promise<AlertItem[]> {
     if (apiClient.isConfigured()) {
       try {
-        return await apiClient.get<AlertItem[]>('/alerts');
+        const remote = await apiClient.get<AlertItem[]>('/alerts');
+        // Merge remote with local dynamic alerts not yet on backend
+        const remoteIds = new Set(remote.map((r) => r.id));
+        const localUnsynced = dynamicAlerts.filter((l) => !remoteIds.has(l.id));
+        return [...localUnsynced, ...remote];
       } catch (err) {
         console.warn('[alertService] getAlerts API failed, falling back to mock:', err);
       }
     }
     await new Promise((resolve) => setTimeout(resolve, 250));
-    return mockAlerts;
+    return dynamicAlerts;
   },
 
   /**
@@ -30,21 +58,11 @@ export const alertService = {
   async getAlertsBySeverity(
     severity: 'all' | 'critical' | 'warning' | 'info'
   ): Promise<AlertItem[]> {
-    if (apiClient.isConfigured()) {
-      try {
-        const query = severity === 'all' ? '' : `?severity=${severity}`;
-        return await apiClient.get<AlertItem[]>(`/alerts${query}`);
-      } catch (err) {
-        console.warn('[alertService] getAlertsBySeverity API failed, falling back to mock:', err);
-      }
-    }
-    await new Promise((resolve) => setTimeout(resolve, 200));
-
+    const all = await this.getAlerts();
     if (severity === 'all') {
-      return mockAlerts;
+      return all;
     }
-
-    return mockAlerts.filter((alert) => alert.severity === severity);
+    return all.filter((alert) => alert.severity === severity);
   },
 
   /**
@@ -59,13 +77,14 @@ export const alertService = {
       }
     }
     await new Promise((resolve) => setTimeout(resolve, 150));
-    return mockAlerts.find((alert) => alert.id === id) || null;
+    return dynamicAlerts.find((alert) => alert.id === id) || null;
   },
 
   /**
    * Mark alert as resolved
    */
   async resolveAlert(id: string): Promise<boolean> {
+    this.resolveLocalAlert(id);
     if (apiClient.isConfigured()) {
       try {
         await apiClient.post<{ id: string; isResolved: boolean }>(`/alerts/${id}/resolve`);

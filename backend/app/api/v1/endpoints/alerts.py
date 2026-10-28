@@ -2,8 +2,14 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from app.api.deps import get_current_user
 from app.models.domain import User
-from app.schemas.alert import AlertItem, AlertResolveResponse
+from app.schemas.alert import (
+    AlertItem,
+    AlertResolveResponse,
+    ThresholdEvaluationRequest,
+    ThresholdEvaluationResponse,
+)
 from app.services.alert_service import alert_service
+from app.core.thresholds import evaluate_reading_threshold
 
 router = APIRouter()
 
@@ -17,6 +23,28 @@ def list_alerts(
     Retrieves operational notifications with optional severity/resolution filters.
     """
     return alert_service.get_alerts(user.id, severity, is_resolved)
+
+@router.post("/evaluate", response_model=ThresholdEvaluationResponse)
+def evaluate_metric_threshold(
+    payload: ThresholdEvaluationRequest,
+):
+    """
+    Evaluates sensor reading against centralized agronomic thresholds.
+    """
+    res = evaluate_reading_threshold(payload.metric, payload.value, payload.activeViolationDirection)
+    return ThresholdEvaluationResponse(
+        isValid=res.is_valid,
+        status=res.status,
+        severity=res.severity,
+        statusLabel=res.status_label,
+        isViolation=res.is_violation,
+        violationDirection=res.violation_direction,
+        title=res.title,
+        notificationBody=res.notification_body,
+        currentValueFormatted=res.current_value_formatted,
+        thresholdValueFormatted=res.threshold_value_formatted,
+        recommendation=res.recommendation,
+    )
 
 @router.get("/{alert_id}", response_model=AlertItem)
 def get_alert(alert_id: str, user: User = Depends(get_current_user)):

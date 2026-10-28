@@ -70,3 +70,7 @@ dataset_review/contact_sheets/
 dataset_processed/
 *.pth
 *.pt
+
+# Generated augmented training images
+dataset_augmented/
+

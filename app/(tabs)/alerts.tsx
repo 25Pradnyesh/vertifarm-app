@@ -4,11 +4,13 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenContainer } from '../../components/ui/ScreenContainer';
 import { Card } from '../../components/ui/Card';
+import { Badge } from '../../components/ui/Badge';
 import { colors } from '../../constants/colors';
 import { typography } from '../../constants/typography';
 import { spacing } from '../../constants/spacing';
 import { radii } from '../../constants/radii';
 import { alertService } from '../../services/alertService';
+import { sensorAlertMonitor } from '../../services/sensorAlertMonitor';
 import { AlertItem } from '../../types';
 
 export default function AlertsScreen() {
@@ -18,6 +20,10 @@ export default function AlertsScreen() {
 
   useEffect(() => {
     loadAlerts();
+    const unsubscribe = sensorAlertMonitor.subscribe(() => {
+      loadAlerts();
+    });
+    return () => unsubscribe();
   }, [filter]);
 
   const loadAlerts = async () => {
@@ -88,7 +94,11 @@ export default function AlertsScreen() {
             onPress={() => router.push(`/alerts/${item.id}` as any)}
             activeOpacity={0.7}
           >
-            <Card variant="default" padding="medium" style={styles.alertCard}>
+            <Card
+              variant="default"
+              padding="medium"
+              style={[styles.alertCard, item.isResolved && styles.alertCardResolved]}
+            >
               <View style={styles.alertRow}>
                 <View
                   style={[
@@ -106,9 +116,27 @@ export default function AlertsScreen() {
                     </Text>
                     <Text style={styles.timestamp}>{item.timestamp}</Text>
                   </View>
+
                   <Text style={styles.alertDescription} numberOfLines={1}>
                     {item.description}
                   </Text>
+
+                  <View style={styles.metaRow}>
+                    <Badge
+                      status={item.severity}
+                      label={item.severity.toUpperCase()}
+                      size="small"
+                      variant="subtle"
+                    />
+                    {item.isResolved ? (
+                      <Badge status="healthy" label="RESOLVED" size="small" variant="solid" />
+                    ) : (
+                      <Badge status="warning" label="ACTIVE" size="small" variant="solid" />
+                    )}
+                    <Text style={styles.metricValMeta}>
+                      {item.currentValue} (Limit: {item.thresholdValue})
+                    </Text>
+                  </View>
                 </View>
               </View>
             </Card>
@@ -175,6 +203,22 @@ const styles = StyleSheet.create({
   },
   alertCard: {
     borderRadius: radii.card,
+  },
+  alertCardResolved: {
+    opacity: 0.7,
+    backgroundColor: colors.surfaceSubtle,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginTop: 6,
+    flexWrap: 'wrap',
+  },
+  metricValMeta: {
+    fontSize: 11,
+    color: colors.textMuted,
+    marginLeft: 4,
   },
   alertRow: {
     flexDirection: 'row',

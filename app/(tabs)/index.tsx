@@ -17,7 +17,8 @@ import { typography } from '../../constants/typography';
 import { spacing } from '../../constants/spacing';
 import { radii } from '../../constants/radii';
 import { sensorService } from '../../services/sensorService';
-import { TelemetrySummary, MetricType } from '../../types';
+import { sensorAlertMonitor } from '../../services/sensorAlertMonitor';
+import { TelemetrySummary, MetricType, AlertItem } from '../../types';
 
 const { width } = Dimensions.get('window');
 const cardWidth = (width - spacing.screenPadding * 2 - spacing.cardGap) / 2;
@@ -25,6 +26,7 @@ const cardWidth = (width - spacing.screenPadding * 2 - spacing.cardGap) / 2;
 export default function DashboardScreen() {
   const router = useRouter();
   const [telemetry, setTelemetry] = useState<TelemetrySummary[]>([]);
+  const [activeAlerts, setActiveAlerts] = useState<AlertItem[]>([]);
   const [healthStatus, setHealthStatus] = useState({
     status: 'healthy' as 'healthy' | 'warning' | 'critical',
     message: 'All systems are running smoothly.',
@@ -32,6 +34,11 @@ export default function DashboardScreen() {
 
   useEffect(() => {
     loadDashboardData();
+    setActiveAlerts(sensorAlertMonitor.getActiveAlerts());
+    const unsubscribe = sensorAlertMonitor.subscribe((active) => {
+      setActiveAlerts(active);
+    });
+    return () => unsubscribe();
   }, []);
 
   const loadDashboardData = async () => {
@@ -83,7 +90,11 @@ export default function DashboardScreen() {
             onPress={() => router.push('/(tabs)/alerts')}
           >
             <Ionicons name="notifications-outline" size={22} color={colors.textPrimary} />
-            <View style={styles.notificationDot} />
+            {activeAlerts.length > 0 && (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationBadgeText}>{activeAlerts.length}</Text>
+              </View>
+            )}
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.avatarButton}
@@ -98,6 +109,28 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Active Alerts Banner */}
+      {activeAlerts.length > 0 && (
+        <TouchableOpacity
+          style={styles.activeAlertsBanner}
+          onPress={() => router.push('/(tabs)/alerts')}
+          activeOpacity={0.8}
+        >
+          <View style={styles.alertBannerIcon}>
+            <Ionicons name="alert-circle" size={22} color={colors.status.critical.primary} />
+          </View>
+          <View style={styles.alertBannerTextContainer}>
+            <Text style={styles.alertBannerTitle}>
+              {activeAlerts.length} Active Alert{activeAlerts.length > 1 ? 's' : ''} Detected
+            </Text>
+            <Text style={styles.alertBannerDesc} numberOfLines={1}>
+              {activeAlerts[0].description}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.status.critical.primary} />
+        </TouchableOpacity>
+      )}
 
       {/* Hero Banner Card */}
       <Card variant="hero" padding="none" style={styles.heroCard}>
@@ -152,18 +185,41 @@ export default function DashboardScreen() {
       </View>
 
       {/* Bottom Status Card */}
-      <Card variant="default" padding="medium" style={styles.summaryCard}>
-        <View style={styles.summaryRow}>
-          <View style={styles.summaryIconCircle}>
-            <Ionicons name="leaf" size={24} color={colors.leafGreen} />
+      <TouchableOpacity onPress={() => router.push('/(tabs)/alerts')} activeOpacity={0.8}>
+        <Card variant="default" padding="medium" style={styles.summaryCard}>
+          <View style={styles.summaryRow}>
+            <View
+              style={[
+                styles.summaryIconCircle,
+                activeAlerts.length > 0 && { backgroundColor: colors.status.critical.background },
+              ]}
+            >
+              <Ionicons
+                name={activeAlerts.length > 0 ? 'warning' : 'leaf'}
+                size={24}
+                color={
+                  activeAlerts.length > 0
+                    ? colors.status.critical.primary
+                    : colors.leafGreen
+                }
+              />
+            </View>
+            <View style={styles.summaryTextContainer}>
+              <Text style={styles.summaryTitle}>
+                {activeAlerts.length > 0
+                  ? `${activeAlerts.length} Parameter${activeAlerts.length > 1 ? 's' : ''} Outside Range`
+                  : 'All Parameters'}
+              </Text>
+              <Text style={styles.summarySubtitle}>
+                {activeAlerts.length > 0
+                  ? 'Tap to view live alerts'
+                  : 'Normal condition'}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
           </View>
-          <View style={styles.summaryTextContainer}>
-            <Text style={styles.summaryTitle}>All Parameters</Text>
-            <Text style={styles.summarySubtitle}>Normal condition</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-        </View>
-      </Card>
+        </Card>
+      </TouchableOpacity>
     </ScreenContainer>
   );
 }
@@ -211,6 +267,23 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.borderLight,
   },
+  notificationBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: colors.status.critical.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  notificationBadgeText: {
+    color: colors.textInverse,
+    fontSize: 10,
+    fontWeight: typography.fontWeight.bold,
+  },
   notificationDot: {
     position: 'absolute',
     top: 10,
@@ -219,6 +292,38 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: colors.status.critical.primary,
+  },
+  activeAlertsBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.status.critical.background,
+    borderWidth: 1,
+    borderColor: colors.status.critical.border,
+    borderRadius: radii.card,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+    gap: spacing.sm,
+  },
+  alertBannerIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  alertBannerTextContainer: {
+    flex: 1,
+  },
+  alertBannerTitle: {
+    fontSize: 14,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.status.critical.text,
+  },
+  alertBannerDesc: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 1,
   },
   avatarButton: {
     width: 40,

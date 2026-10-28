@@ -74,6 +74,7 @@ def evaluate_test_set(
     checkpoint_path: Path = CHECKPOINT_PATH,
     output_dir: Path = MODELS_DIR,
     uncertainty_threshold: float = 0.60,
+    output_prefix: str = "",
 ) -> Dict[str, any]:
     print("=" * 65)
     print("VERTIFARM CLASSIFIER HELD-OUT TEST EVALUATION")
@@ -197,17 +198,18 @@ def evaluate_test_set(
             })
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    predictions_csv_path = output_dir / "test_predictions.csv"
+    pfx = f"{output_prefix}_" if output_prefix and not output_prefix.endswith("_") else output_prefix
+    predictions_csv_path = output_dir / f"{pfx}test_predictions.csv"
     with predictions_csv_path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=predictions_rows[0].keys())
         writer.writeheader()
         writer.writerows(predictions_rows)
 
-    misclassified_json_path = output_dir / "misclassified_examples.json"
+    misclassified_json_path = output_dir / f"{pfx}misclassified_examples.json"
     with misclassified_json_path.open("w", encoding="utf-8") as f:
         json.dump(misclassified, f, indent=2)
 
-    cm_json_path = output_dir / "confusion_matrix.json"
+    cm_json_path = output_dir / f"{pfx}confusion_matrix.json"
     with cm_json_path.open("w", encoding="utf-8") as f:
         json.dump({
             "class_names": CLASS_NAMES,
@@ -276,6 +278,7 @@ if __name__ == "__main__":
     parser.add_argument("--checkpoint", type=Path, default=CHECKPOINT_PATH, help="Path to model checkpoint")
     parser.add_argument("--output", type=Path, default=MODELS_DIR, help="Output directory")
     parser.add_argument("--threshold", type=float, default=0.60, help="Uncertainty threshold")
+    parser.add_argument("--prefix", type=str, default="", help="Prefix for saved result files (e.g. conservative_aug)")
     args = parser.parse_args()
 
     evaluate_test_set(
@@ -283,4 +286,5 @@ if __name__ == "__main__":
         checkpoint_path=args.checkpoint,
         output_dir=args.output,
         uncertainty_threshold=args.threshold,
+        output_prefix=args.prefix,
     )

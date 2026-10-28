@@ -37,54 +37,19 @@ PHYSICAL_LIMITS: Dict[str, Tuple[float, float, str]] = {
     "light": (0.0, 150000.0, "Lux"),
 }
 
+from app.core.thresholds import evaluate_reading_threshold
+
 def evaluate_reading_status(metric: str, value: float) -> Tuple[str, str]:
     """
     Evaluates metric reading against agronomic thresholds.
     Returns (status, status_label) where status is 'healthy' | 'warning' | 'critical'.
+    Delegates to centralized agronomic thresholds engine.
     """
-    if metric == "temperature":
-        if 20.0 <= value <= 30.0:
-            return "healthy", "Normal"
-        elif 15.0 <= value <= 35.0:
-            return "warning", "Temperature Warning"
-        return "critical", "Temperature Critical"
+    res = evaluate_reading_threshold(metric, value)
+    if not res.is_valid:
+        return "healthy", "Normal"
+    return res.status, res.status_label
 
-    if metric == "humidity":
-        if 60.0 <= value <= 80.0:
-            return "healthy", "Normal"
-        elif 40.0 <= value <= 90.0:
-            return "warning", "Humidity Warning"
-        return "critical", "Humidity Critical"
-
-    if metric == "soilMoisture":
-        if 40.0 <= value <= 60.0:
-            return "healthy", "Normal"
-        elif 30.0 <= value <= 75.0:
-            return "warning", "Moisture Warning"
-        return "critical", "Moisture Critical"
-
-    if metric == "ph":
-        if 6.0 <= value <= 7.0:
-            return "healthy", "Slightly Acidic" if value < 6.8 else "Normal"
-        elif 5.5 <= value <= 7.5:
-            return "warning", "pH Warning"
-        return "critical", "pH Critical"
-
-    if metric == "tds":
-        if 500.0 <= value <= 800.0:
-            return "healthy", "Normal"
-        elif 400.0 <= value <= 1000.0:
-            return "warning", "TDS Warning"
-        return "critical", "TDS Critical"
-
-    if metric == "light":
-        if 1000.0 <= value <= 2000.0:
-            return "healthy", "Optimal"
-        elif 500.0 <= value <= 3000.0:
-            return "warning", "Suboptimal Light"
-        return "critical", "Light Warning"
-
-    return "healthy", "Normal"
 
 class DeduplicationCache:
     """Bounded sliding window cache to prevent duplicate processing of QoS 1 MQTT retransmissions."""
@@ -230,6 +195,10 @@ class MQTTService:
 
         # 9. Realtime broadcast
         realtime_service.broadcast_reading_sync(reading)
+
+        # 10. Evaluate threshold alerts & deduplication
+        from app.services.alert_service import alert_service
+        alert_service.process_reading_telemetry(reading)
 
         logger.info(
             f"Successfully ingested telemetry: farm={resolved_farm} sensor={resolved_sensor} "
