@@ -72,6 +72,15 @@ CROP_MAPPING = {
     "fenugreek_healthy": {"crop": "Fenugreek", "disease": "Healthy", "is_healthy": True},
 }
 
+CLUSTER_COUNTS = {
+    "coriander_bacterial_blight": 83,
+    "coriander_healthy": 85,
+    "coriander_powdery_mildew": 42,
+    "fenugreek_bacterial_blight": 73,
+    "fenugreek_cercospora_leaf_spot": 73,
+    "fenugreek_healthy": 79,
+}
+
 
 def get_device() -> torch.device:
     if torch.cuda.is_available():
@@ -96,9 +105,11 @@ def get_data_transforms(
     return train_transform, val_transform
 
 
-def build_model(num_classes: int = 6) -> nn.Module:
+def build_model(num_classes: int = 6, dropout: float = 0.2) -> nn.Module:
     weights = models.MobileNet_V3_Small_Weights.DEFAULT
     model = models.mobilenet_v3_small(weights=weights)
+    if dropout != 0.2:
+        model.classifier[2] = nn.Dropout(p=dropout, inplace=True)
     in_features = model.classifier[3].in_features
     model.classifier[3] = nn.Linear(in_features, num_classes)
     return model
@@ -199,6 +210,9 @@ def train_classifier(
     batch_size: int = 32,
     learning_rate: float = 5e-4,
     weight_decay: float = 1e-2,
+    dropout: float = 0.2,
+    label_smoothing: float = 0.0,
+    class_weight_mode: str = "none",
     patience: int = 6,
     seed: int = 42,
     policy_name: str = "conservative",
@@ -306,7 +320,7 @@ def train_classifier(
         val_dataset, batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=False
     )
 
-    model = build_model(num_classes=len(CLASS_NAMES))
+    model = build_model(num_classes=len(CLASS_NAMES), dropout=dropout)
     model.to(device)
 
     # Optimizer with differential learning rates: backbone 1e-4, head 5e-4
@@ -319,7 +333,18 @@ def train_classifier(
     ], weight_decay=weight_decay)
 
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=1e-6)
-    criterion = nn.CrossEntropyLoss()
+
+    # Loss criterion configuration
+    loss_weights = None
+    if class_weight_mode == "cluster_balanced":
+        max_c = max(CLUSTER_COUNTS.values())
+        weights_list = [max_c / CLUSTER_COUNTS[name] for name in CLASS_NAMES]
+        loss_weights = torch.tensor(weights_list, dtype=torch.float, device=device)
+        print(f"[CLASS WEIGHTING ENABLED: cluster_balanced]")
+        for c_idx, c_name in enumerate(CLASS_NAMES):
+            print(f"  * {c_name:<32}: weight = {weights_list[c_idx]:.4f} (from {CLUSTER_COUNTS[c_name]} clusters)")
+
+    criterion = nn.CrossEntropyLoss(weight=loss_weights, label_smoothing=label_smoothing)
 
     output_dir.mkdir(parents=True, exist_ok=True)
     best_model_path = output_dir / checkpoint_name
@@ -489,6 +514,12 @@ def train_classifier(
             "checkpoint": str(best_model_path.name),
             "seed": seed,
             "smoke_test": smoke_test,
+            "regularization": {
+                "dropout": dropout,
+                "weight_decay": weight_decay,
+                "label_smoothing": label_smoothing,
+                "class_weights": class_weight_mode,
+            },
         },
         "scientific_limitation_disclosure": (
             "The 4,200 training files are generated from 420 source images (430 unique leaves overall). "
@@ -544,6 +575,16 @@ if __name__ == "__main__":
     parser.add_argument("--rotation", type=float, default=None, help="Custom rotation degrees")
     parser.add_argument("--flip-v", type=float, default=None, help="Custom vertical flip probability")
     parser.add_argument("--hue-jitter", type=float, default=None, help="Custom hue jitter (max 0.02)")
+    parser.add_argument(
+        "--class-weights",
+        type=str,
+        default="none",
+        choices=["none", "cluster_balanced"],
+        help="Class weighting mode: 'none' or 'cluster_balanced'",
+    )
+    parser.add_argument("--label-smoothing", type=float, default=0.0, help="Label smoothing epsilon (e.g. 0.1)")
+    parser.add_argument("--dropout", type=float, default=0.2, help="Classification head dropout probability")
+    parser.add_argument("--weight-decay", type=float, default=1e-2, help="AdamW weight decay")
     parser.add_argument("--smoke-test", action="store_true", help="Run fast 2-batch verification smoke test")
     args = parser.parse_args()
 
@@ -563,6 +604,10 @@ if __name__ == "__main__":
         epochs=args.epochs,
         batch_size=args.batch_size,
         learning_rate=args.lr,
+        weight_decay=args.weight_decay,
+        dropout=args.dropout,
+        label_smoothing=args.label_smoothing,
+        class_weight_mode=args.class_weights,
         policy_name=online_policy,
         checkpoint_name=args.checkpoint_name,
         seed=args.seed,

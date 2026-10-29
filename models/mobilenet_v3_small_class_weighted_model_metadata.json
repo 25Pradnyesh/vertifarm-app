@@ -1,0 +1,136 @@
+{
+  "model_name": "VertiFarm Plant Disease Classifier",
+  "architecture": "MobileNetV3-Small",
+  "weights_initialization": "MobileNet_V3_Small_Weights.DEFAULT",
+  "num_classes": 6,
+  "class_names": [
+    "coriander_bacterial_blight",
+    "coriander_healthy",
+    "coriander_powdery_mildew",
+    "fenugreek_bacterial_blight",
+    "fenugreek_cercospora_leaf_spot",
+    "fenugreek_healthy"
+  ],
+  "class_to_idx": {
+    "coriander_bacterial_blight": 0,
+    "coriander_healthy": 1,
+    "coriander_powdery_mildew": 2,
+    "fenugreek_bacterial_blight": 3,
+    "fenugreek_cercospora_leaf_spot": 4,
+    "fenugreek_healthy": 5
+  },
+  "crop_mapping": {
+    "coriander_bacterial_blight": {
+      "crop": "Coriander",
+      "disease": "Bacterial Blight",
+      "is_healthy": false
+    },
+    "coriander_healthy": {
+      "crop": "Coriander",
+      "disease": "Healthy",
+      "is_healthy": true
+    },
+    "coriander_powdery_mildew": {
+      "crop": "Coriander",
+      "disease": "Powdery Mildew",
+      "is_healthy": false
+    },
+    "fenugreek_bacterial_blight": {
+      "crop": "Fenugreek",
+      "disease": "Bacterial Blight",
+      "is_healthy": false
+    },
+    "fenugreek_cercospora_leaf_spot": {
+      "crop": "Fenugreek",
+      "disease": "Cercospora Leaf Spot",
+      "is_healthy": false
+    },
+    "fenugreek_healthy": {
+      "crop": "Fenugreek",
+      "disease": "Healthy",
+      "is_healthy": true
+    }
+  },
+  "input_dimensions": [
+    3,
+    224,
+    224
+  ],
+  "dataset_configuration": {
+    "dataset_type": "combined",
+    "description": "Combined Training Set: 420 original source images + 3780 offline augmented derivatives = 4200 total images",
+    "manifest_sha256": "2a04bfb6e42b1c6d541128eebccce4fad1519483ba47e4eccf2081320430c2c7",
+    "training_samples": 4200,
+    "validation_samples": 90,
+    "test_samples": 90,
+    "classes": [
+      "coriander_bacterial_blight",
+      "coriander_healthy",
+      "coriander_powdery_mildew",
+      "fenugreek_bacterial_blight",
+      "fenugreek_cercospora_leaf_spot",
+      "fenugreek_healthy"
+    ]
+  },
+  "normalization": {
+    "mean": [
+      0.485,
+      0.456,
+      0.406
+    ],
+    "std": [
+      0.229,
+      0.224,
+      0.225
+    ]
+  },
+  "padding_strategy": "ImageNet-mean RGB (124, 116, 104) neutral canvas (maps to 0.0 in tensor space)",
+  "augmentation": {
+    "online_policy_name": "none",
+    "rotation_degrees": 0.0,
+    "horizontal_flip_prob": 0.0,
+    "vertical_flip_prob": 0.0,
+    "translate_percent": [
+      0.0,
+      0.0
+    ],
+    "scale_range": [
+      1.0,
+      1.0
+    ],
+    "enable_random_crop": false,
+    "crop_scale": [
+      0.88,
+      1.0
+    ],
+    "brightness_jitter": 0.0,
+    "contrast_jitter": 0.0,
+    "saturation_jitter": 0.0,
+    "hue_jitter": 0.0,
+    "enable_blur": false,
+    "blur_prob": 0.2,
+    "padding_color": [
+      124,
+      116,
+      104
+    ]
+  },
+  "training_summary": {
+    "best_epoch": 10,
+    "best_val_f1": 0.9336,
+    "best_val_acc": 0.9333,
+    "total_duration_sec": 1112.43,
+    "device": "cpu",
+    "checkpoint": "mobilenet_v3_small_class_weighted.pth",
+    "seed": 42,
+    "smoke_test": false,
+    "regularization": {
+      "dropout": 0.3,
+      "weight_decay": 0.02,
+      "label_smoothing": 0.1,
+      "class_weights": "cluster_balanced"
+    }
+  },
+  "scientific_limitation_disclosure": "The 4,200 training files are generated from 420 source images (430 unique leaves overall). Correlated derivative samples must not be interpreted as independent biological samples. Generalization evaluation is strictly performed on the 90 unaugmented held-out test set.",
+  "uncertainty_threshold": 0.6
+}

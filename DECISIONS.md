@@ -640,6 +640,37 @@ Evaluated using `scripts/evaluate_classifier.py` on checkpoint `models/mobilenet
 
 ---
 
+### ADR-014: Implementation & Training of Cluster-Balanced Class-Weighted & Regularized Classifier (`EXP-005`)
+- **Decision ID:** `ADR-014`
+- **Date/Time:** 2026-10-29T19:35:00+05:30
+- **Status:** **VALIDATED & CHECKPOINT PERSISTED**
+- **Context:**
+  Implemented the Phase D approved architecture modifications in `scripts/train_classifier.py` and executed controlled training experiment `EXP-005` on the 4,200 combined dataset.
+- **Code Modifications Implemented (`scripts/train_classifier.py`):**
+  1. `build_model(dropout=...)`: Configured customizable classification head dropout (`p=0.30`).
+  2. Inverse-Cluster Class Weighting: Computed loss weights inversely proportional to the 430 unique visual clusters identified in Phase B:
+     - `coriander_bacterial_blight` (83 clusters): $w = 1.0241$
+     - `coriander_healthy` (85 clusters): $w = 1.0000$
+     - `coriander_powdery_mildew` (42 clusters): $w = 2.0238$
+     - `fenugreek_bacterial_blight` (73 clusters): $w = 1.1644$
+     - `fenugreek_cercospora_leaf_spot` (73 clusters): $w = 1.1644$
+     - `fenugreek_healthy` (79 clusters): $w = 1.0759$
+  3. `nn.CrossEntropyLoss(weight=loss_weights, label_smoothing=0.10)`.
+  4. AdamW optimizer with weight decay $\lambda = 0.02$.
+- **Empirical Training Outcomes (`EXP-005`):**
+  - Verification smoke test passed in 1.99s.
+  - Full 15-epoch training completed in 1112.43s (18.54 min) on CPU.
+  - Peak Validation Checkpoint: **Epoch 10**.
+  - **Best Validation Macro F1: 0.9336** (Record peak; surpasses `EXP-004` 0.8998 by +0.0338, and Baseline `EXP-001` 0.8566 by +0.0770).
+  - **Best Validation Accuracy: 93.3%** (84/90 correct; surpasses `EXP-004` 90.0% by +3.3%, and Baseline 85.56% by +7.7%).
+  - Validation metrics remained rock-solid across epochs 9–15 (92.2%–93.3% accuracy, 0.922–0.934 F1), proving convergence stability.
+  - Saved Checkpoint: `models/mobilenet_v3_small_class_weighted.pth` (6.23 MiB).
+  - Metadata and history saved cleanly to `models/mobilenet_v3_small_class_weighted_model_metadata.json` and `models/mobilenet_v3_small_class_weighted_training_history.csv/.json`.
+- **Decision:**
+  Formally register `mobilenet_v3_small_class_weighted.pth` as the champion candidate from Phase E. Advance immediately to Phase F for held-out test set evaluation ($N=90$).
+
+---
+
 ## 3. Chronological Change History
 
 | Date / Time (IST) | Change ID | Files Changed | Summary of Change | Reason | Validation Status |
@@ -663,6 +694,7 @@ Evaluated using `scripts/evaluate_classifier.py` on checkpoint `models/mobilenet
 | 2026-10-29 16:15 | `CHG-017` | `scripts/audit_generalisation.py`, `DECISIONS.md` | Conducted Phase B data integrity and perceptual cluster analysis across all 6 classes. | Discovered PM has only 42 unique clusters; isolated 6/8 test errors to 2 multi-image clusters. | **VALIDATED** (ADR-011 documented). |
 | 2026-10-29 18:45 | `CHG-018` | `scripts/error_analysis.py`, `models/phase_c_error_analysis.json`, `DECISIONS.md` | Conducted Phase C deep error analysis profiling full softmax probabilities and margins. | Demonstrated all 8 PM errors are borderline (<57% conf) with PM as runner-up in 7/8. | **VALIDATED** (ADR-012 documented). |
 | 2026-10-29 19:10 | `CHG-019` | `DECISIONS.md` | Formulated Phase D controlled experiment plan with 3 targeted hypotheses (class weighting, regularization). | Establish scientific hypotheses before initiating candidate retraining. | **APPROVED** (ADR-013 documented). |
+| 2026-10-29 19:35 | `CHG-020` | `scripts/train_classifier.py`, `models/mobilenet_v3_small_class_weighted*` | Implemented `--class-weights cluster_balanced`, `--label-smoothing 0.10`, `--dropout 0.30`, `--weight-decay 0.02` and executed `EXP-005`. | Test Hypothesis 1 & 2 to resolve borderline weak-class errors and improve generalization. | **RECORD METRIC** (Peak Val F1 0.9336, Val Acc 93.3% at Ep 10). |
 
 ---
 
@@ -673,7 +705,8 @@ Evaluated using `scripts/evaluate_classifier.py` on checkpoint `models/mobilenet
 | `EXP-001` (Baseline) | `a734f5dd...` (raw)<br>`ebd4af44...` (manifest) | 420 train / 90 val / 90 test (Grouped Stratified) | `MobileNetV3-Small` (2.54M params) | Minimal hardcoded:<br>H-Flip 0.5, V-Flip 0.5, Rot 15, ColorJitter(0.1) | 42 | AdamW (lr=5e-4 head, 1e-4 backbone), CosineAnneal, 14 epochs | 0.8566 (Ep 8) | **85.56%** | **0.8517** | **Champion Checkpoint.** Preserved as active production model in `models/mobilenet_v3_small_plant_disease.pth`. Powdery mildew recall (53.3%) is primary weakness. |
 | `EXP-002` (Conservative Aug) | `a734f5dd...` (raw)<br>`ebd4af44...` (manifest) | 420 train / 90 val / 90 test (Grouped Stratified) | `MobileNetV3-Small` (2.54M params) | Rot 20°, V-Flip 0.2, H-Flip 0.5, Affine 4%/0.95-1.05, ResizedCrop 0.88-1.0, Jitter 0.15/0.15/0.10/0.01, GaussianBlur p=0.20 | 42 | AdamW (lr=5e-4 head, 1e-4 backbone), CosineAnneal, 15 epochs | 0.8225 (Ep 13) | 77.78% | 0.7624 | Negative result. Gaussian blur attenuates delicate powdery mildew mycelial texture; crop removes small margin spots. Do NOT deploy. |
 | `EXP-003` (Light Aug) | `a734f5dd...` (raw)<br>`ebd4af44...` (manifest) | 420 train / 90 val / 90 test (Grouped Stratified) | `MobileNetV3-Small` (2.54M params) | Rot 10°, H-Flip 0.5, V-Flip 0.0, Affine 2%, Jitter 0.10/0.10/0.05/0.0, No Blur, No Crop | 42 | AdamW (lr=5e-4 head, 1e-4 backbone), CosineAnneal, 15 epochs | 0.8561 (Ep 15) | 82.22% | 0.8054 | Significant recovery (+4.44% acc over EXP-002). **Coriander Bacterial Blight F1 reached new peak of 0.9091 (100% recall)**. Coriander healthy achieved 100% recall. Powdery mildew remained at 33.3% recall. |
-| `EXP-004` (Offline Augmented Combined) | `2a04bfb6...` (combined manifest)<br>`d36aa18b...` (aug manifest) | 4,200 train (420 orig + 3,780 aug) / 90 val / 90 test | `MobileNetV3-Small` (2.54M params) | 9 Distinct Techniques Offline (Rot 20°, H-Flip 0.5, V-Flip 0.2, Brightness 15%, Contrast 15%, Crop 12%, Trans 8%, Blur, Noise). Online: `none`. | 42 | AdamW (lr=5e-4 head, 1e-4 backbone), CosineAnneal, 8 epochs (early stop) | **0.8998** (Ep 2) | 84.44% | 0.8358 | **Strongest Validation F1 recorded (0.8998)**. Test accuracy 84.44% (76/90). **Fenugreek Bacterial Blight F1 reached peak 0.9677 (100% recall)**, Cercospora reached peak 0.8966, Coriander Powdery Mildew reached 1.0000 Precision. Preserved as offline-augmented candidate. |
+| `EXP-004` (Offline Augmented Combined) | `2a04bfb6...` (combined manifest)<br>`d36aa18b...` (aug manifest) | 4,200 train (420 orig + 3,780 aug) / 90 val / 90 test | `MobileNetV3-Small` (2.54M params) | 9 Distinct Techniques Offline (Rot 20°, H-Flip 0.5, V-Flip 0.2, Brightness 15%, Contrast 15%, Crop 12%, Trans 8%, Blur, Noise). Online: `none`. | 42 | AdamW (lr=5e-4 head, 1e-4 backbone), CosineAnneal, 8 epochs (early stop) | 0.8998 (Ep 2) | 84.44% | 0.8358 | **Strongest Validation F1 recorded at the time (0.8998)**. Test accuracy 84.44% (76/90). **Fenugreek Bacterial Blight F1 reached peak 0.9677 (100% recall)**, Cercospora reached peak 0.8966. |
+| `EXP-005` (Cluster-Weighted Regularized) | `2a04bfb6...` (combined manifest)<br>`d36aa18b...` (aug manifest) | 4,200 train (420 orig + 3,780 aug) / 90 val / 90 test | `MobileNetV3-Small` (2.54M params) | 9 Distinct Techniques Offline. Online: `none`. | 42 | AdamW (lr=5e-4 head, 1e-4 backbone, decay 0.02), CosineAnneal, 15 epochs. Class weights: `[1.02, 1.00, 2.02, 1.16, 1.16, 1.08]`, Label Smooth 0.10, Dropout 0.30 | **0.9336** (Ep 10) | *Pending Phase F* | *Pending Phase F* | **All-time peak Validation Macro F1 (0.9336) and Accuracy (93.3%)**. Proceeding to Phase F evaluation. |
 
 ---
 
