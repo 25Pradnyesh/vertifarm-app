@@ -1,0 +1,149 @@
+[
+  {
+    "filename": "coriander_bacterial_blight_0011_Bacterial Blight.jpg.png",
+    "source_path": "dataset_processed\\test\\coriander_bacterial_blight\\coriander_bacterial_blight_0011_Bacterial Blight.jpg.png",
+    "true_class": "coriander_bacterial_blight",
+    "predicted_class": "coriander_healthy",
+    "confidence": 0.349,
+    "top_predictions": [
+      {
+        "class": "coriander_healthy",
+        "prob": 0.349
+      },
+      {
+        "class": "coriander_powdery_mildew",
+        "prob": 0.2496
+      },
+      {
+        "class": "coriander_bacterial_blight",
+        "prob": 0.1697
+      }
+    ]
+  },
+  {
+    "filename": "coriander_bacterial_blight_0095_Bacterial Blight.jpg.png",
+    "source_path": "dataset_processed\\test\\coriander_bacterial_blight\\coriander_bacterial_blight_0095_Bacterial Blight.jpg.png",
+    "true_class": "coriander_bacterial_blight",
+    "predicted_class": "coriander_powdery_mildew",
+    "confidence": 0.3181,
+    "top_predictions": [
+      {
+        "class": "coriander_powdery_mildew",
+        "prob": 0.3181
+      },
+      {
+        "class": "coriander_bacterial_blight",
+        "prob": 0.2859
+      },
+      {
+        "class": "coriander_healthy",
+        "prob": 0.1608
+      }
+    ]
+  },
+  {
+    "filename": "coriander_bacterial_blight_0099_Bacterial Blight.jpg.png",
+    "source_path": "dataset_processed\\test\\coriander_bacterial_blight\\coriander_bacterial_blight_0099_Bacterial Blight.jpg.png",
+    "true_class": "coriander_bacterial_blight",
+    "predicted_class": "coriander_healthy",
+    "confidence": 0.388,
+    "top_predictions": [
+      {
+        "class": "coriander_healthy",
+        "prob": 0.388
+      },
+      {
+        "class": "coriander_bacterial_blight",
+        "prob": 0.2249
+      },
+      {
+        "class": "fenugreek_healthy",
+        "prob": 0.1422
+      }
+    ]
+  },
+  {
+    "filename": "coriander_powdery_mildew_0008_Powdery Mildew.jpg.png",
+    "source_path": "dataset_processed\\test\\coriander_powdery_mildew\\coriander_powdery_mildew_0008_Powdery Mildew.jpg.png",
+    "true_class": "coriander_powdery_mildew",
+    "predicted_class": "fenugreek_cercospora_leaf_spot",
+    "confidence": 0.446,
+    "top_predictions": [
+      {
+        "class": "fenugreek_cercospora_leaf_spot",
+        "prob": 0.446
+      },
+      {
+        "class": "coriander_powdery_mildew",
+        "prob": 0.2909
+      },
+      {
+        "class": "coriander_healthy",
+        "prob": 0.1008
+      }
+    ]
+  },
+  {
+    "filename": "fenugreek_cercospora_leaf_spot_0064_Cercospora leaf spot.jpg.png",
+    "source_path": "dataset_processed\\test\\fenugreek_cercospora_leaf_spot\\fenugreek_cercospora_leaf_spot_0064_Cercospora leaf spot.jpg.png",
+    "true_class": "fenugreek_cercospora_leaf_spot",
+    "predicted_class": "fenugreek_healthy",
+    "confidence": 0.3972,
+    "top_predictions": [
+      {
+        "class": "fenugreek_healthy",
+        "prob": 0.3972
+      },
+      {
+        "class": "fenugreek_cercospora_leaf_spot",
+        "prob": 0.342
+      },
+      {
+        "class": "coriander_powdery_mildew",
+        "prob": 0.1019
+      }
+    ]
+  },
+  {
+    "filename": "fenugreek_cercospora_leaf_spot_0100_Cercospora leaf spot.jpg.png",
+    "source_path": "dataset_processed\\test\\fenugreek_cercospora_leaf_spot\\fenugreek_cercospora_leaf_spot_0100_Cercospora leaf spot.jpg.png",
+    "true_class": "fenugreek_cercospora_leaf_spot",
+    "predicted_class": "coriander_bacterial_blight",
+    "confidence": 0.3364,
+    "top_predictions": [
+      {
+        "class": "coriander_bacterial_blight",
+        "prob": 0.3364
+      },
+      {
+        "class": "fenugreek_cercospora_leaf_spot",
+        "prob": 0.196
+      },
+      {
+        "class": "coriander_powdery_mildew",
+        "prob": 0.1696
+      }
+    ]
+  },
+  {
+    "filename": "fenugreek_healthy_0093_Fenugreek Healthy.jpg.png",
+    "source_path": "dataset_processed\\test\\fenugreek_healthy\\fenugreek_healthy_0093_Fenugreek Healthy.jpg.png",
+    "true_class": "fenugreek_healthy",
+    "predicted_class": "fenugreek_bacterial_blight",
+    "confidence": 0.5016,
+    "top_predictions": [
+      {
+        "class": "fenugreek_bacterial_blight",
+        "prob": 0.5016
+      },
+      {
+        "class": "coriander_powdery_mildew",
+        "prob": 0.1979
+      },
+      {
+        "class": "fenugreek_healthy",
+        "prob": 0.1249
+      }
+    ]
+  }
+]
