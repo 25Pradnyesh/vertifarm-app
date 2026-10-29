@@ -483,6 +483,51 @@ Evaluated using `scripts/evaluate_classifier.py` on checkpoint `models/mobilenet
 
 ---
 
+### ADR-009: Strict Evaluation Verification & Sample-by-Sample Audit (Baseline vs Offline Augmented)
+- **Decision ID:** `ADR-009`
+- **Date/Time:** 2026-10-29T16:10:00+05:30
+- **Status:** **VALIDATED & RECORDED**
+- **Context:**
+  A formal comparative audit was conducted to verify whether the reported difference between baseline production model `models/mobilenet_v3_small_plant_disease.pth` (85.56%) and offline-augmented model `models/mobilenet_v3_small_offline_augmented.pth` (84.44%) was an artifact of evaluation divergence or genuine prediction differences.
+- **Audit Verification of Evaluation Conditions:**
+  1. **Test Set Identity:** Verified bitwise identical. Both runs evaluated on the exact same 90 images in `dataset_processed/test/` (15 per class across all 6 classes).
+  2. **Class Mapping & Labels:** Verified identical `class_to_idx` mapping across both checkpoints (`{coriander_bacterial_blight: 0, coriander_healthy: 1, coriander_powdery_mildew: 2, fenugreek_bacterial_blight: 3, fenugreek_cercospora_leaf_spot: 4, fenugreek_healthy: 5}`).
+  3. **Preprocessing & Normalization:** Verified identical transforms (`ToTensor()` + ImageNet `mean=[0.485, 0.456, 0.406]`, `std=[0.229, 0.224, 0.225]`).
+  4. **Evaluation Code & Threshold:** Both executed via `scripts/evaluate_classifier.py` with uncertainty threshold `0.60`.
+- **Comparative Metrics Summary:**
+  - **Baseline:** Test Accuracy **85.56%** (77/90), Macro Precision 0.8705, Macro Recall 0.8556, Macro F1 **0.8517**, Misclassifications 13/90.
+  - **Augmented:** Test Accuracy **84.44%** (76/90), Macro Precision 0.8734, Macro Recall 0.8444, Macro F1 **0.8358**, Misclassifications 14/90.
+  - Net difference: exactly 1 test sample out of 90 ($-1.11\%$).
+- **Sample-by-Sample Prediction Audit (scripts/compare_audits.py):**
+  - **Prediction Agreement Rate:** 77/90 (85.56%).
+  - **Prediction Disagreement:** 13/90 (14.44%).
+  - **Both Models Correct:** 72/90 (80.00%).
+  - **Both Models Wrong:** 9/90 (10.00%).
+  - **Baseline Correct, Augmented Wrong (Regressions, 5 samples):**
+    1. `coriander_bacterial_blight_0011` (Baseline: BB 80.4% [correct]; Aug: coriander healthy 80.2% [wrong]).
+    2. `coriander_bacterial_blight_0095` (Baseline: BB 95.8% [correct]; Aug: coriander healthy 47.3% [wrong]).
+    3. `coriander_bacterial_blight_0099` (Baseline: BB 61.0% [correct]; Aug: coriander healthy 97.2% [wrong]).
+    4. `coriander_powdery_mildew_0008` (Baseline: PM 33.2% [correct]; Aug: fenugreek cercospora 48.7% [wrong]).
+    5. `coriander_powdery_mildew_0030` (Baseline: PM 49.5% [correct]; Aug: coriander BB 49.5% [wrong]).
+  - **Augmented Correct, Baseline Wrong (Recoveries, 4 samples):**
+    1. `coriander_healthy_0093` (Baseline: coriander BB [wrong]; Aug: coriander healthy 96.6% [correct]).
+    2. `coriander_powdery_mildew_0023` (Baseline: coriander BB [wrong]; Aug: coriander PM 96.0% [correct]).
+    3. `fenugreek_bacterial_blight_0071` (Baseline: fenugreek healthy [wrong]; Aug: fenugreek BB 63.5% [correct]).
+    4. `fenugreek_cercospora_leaf_spot_0055` (Baseline: fenugreek BB [wrong]; Aug: fenugreek cercospora 56.6% [correct]).
+  - **Mutual Failures (9 samples):**
+    - 4 powdery mildew samples (`0040`, `0041`, `0054`, `0055`) are misclassified by BOTH models as `fenugreek_healthy`.
+    - 2 powdery mildew samples (`0082`, `0083`) are misclassified by both (Baseline: coriander BB; Aug: coriander healthy).
+    - 1 cercospora sample (`0064`) misclassified by both as `fenugreek_healthy`.
+    - 2 cross-class confusions (`cercospora_0100`, `fenugreek_healthy_0093`).
+- **Agronomic & Statistical Conclusions:**
+  1. Offline augmentation produced major gains in Fenugreek disease discrimination (`fenugreek_bacterial_blight` reached 100% recall with 0.9677 F1; `fenugreek_cercospora` reached 0.8966 F1).
+  2. Coriander disease classification degraded under offline augmentation: 3 bacterial blight samples and 2 powdery mildew samples drifted into `coriander_healthy`, reflecting a tendency to predict healthy foliage when lesion textures are altered.
+  3. Severe Overfitting Identified: The combined model achieved 100% training accuracy at epoch 5 while validation hovered at 90.0% and test at 84.44%. The model is memorizing the 420 source topologies across their 9 derivatives. Additional regularization (higher dropout, weight decay, label smoothing, or focal loss) is required.
+- **Decision:**
+  Formally confirm Baseline `models/mobilenet_v3_small_plant_disease.pth` as current champion (85.56%). Advance to Phase B & C data integrity and error analysis to identify root causes of the powdery mildew failure modes.
+
+---
+
 ## 3. Chronological Change History
 
 | Date / Time (IST) | Change ID | Files Changed | Summary of Change | Reason | Validation Status |
@@ -502,6 +547,7 @@ Evaluated using `scripts/evaluate_classifier.py` on checkpoint `models/mobilenet
 | 2026-10-28 22:55 | `CHG-013` | `scripts/test_augmentation_pipeline.py`, `backend/tests/test_augmentations.py` | Added Tests 9-14 to verification suite and pytest assertions for no-collage, manifest hashes, and 9 primitives. | Ensure automated regression prevention and strict non-collage compliance. | **PASS** (14/14 standalone, 9/9 pytest). |
 | 2026-10-28 23:05 | `CHG-014` | `scripts/train_classifier.py`, `models/mobilenet_v3_small_offline_augmented.pth` | Added `--dataset-type combined` support, smoke test, and executed 4,200-sample training run `EXP-004`. | Train MobileNetV3-Small on combined dataset without double-augmentation. | **COMPLETED** (Val F1 0.8998 at Ep 2). |
 | 2026-10-28 23:08 | `CHG-015` | `models/offline_aug_*`, `scripts/evaluate_classifier.py` | Executed held-out test evaluation on candidate checkpoint. | Rigorous evaluation on untouched test set ($N=90$). | **PASS** (Acc 84.44%, Fenugreek Blight F1 0.9677). |
+| 2026-10-29 16:10 | `CHG-016` | `scripts/compare_audits.py`, `models/*_audit_*`, `DECISIONS.md` | Executed Phase A side-by-sample audit comparing Baseline (`EXP-001`) vs Augmented (`EXP-004`). | Verify exact evaluation identity, quantify agreement (85.56%), isolate 5 regressions and 4 recoveries. | **VALIDATED** (ADR-009 documented). |
 
 ---
 
