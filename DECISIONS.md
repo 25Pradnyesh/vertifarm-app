@@ -595,6 +595,51 @@ Evaluated using `scripts/evaluate_classifier.py` on checkpoint `models/mobilenet
 
 ---
 
+### ADR-013: Controlled Experiment Plan & Hypotheses to Mitigate Overfitting and Resolve Weak-Class Borderline Deficit
+- **Decision ID:** `ADR-013`
+- **Date/Time:** 2026-10-29T19:10:00+05:30
+- **Status:** **APPROVED FOR EXECUTION**
+- **Context:**
+  Following Phase A audit, Phase B data integrity findings (effective sample size of 42 clusters in PM), and Phase C error analysis (demonstrating all 8 PM errors are borderline with razor-thin margins), a controlled experiment plan is formulated to address both the 100% training memorization and the weak-class decision boundary shift.
+- **Empirical Baseline & Candidate Metrics to Surpass:**
+  - `EXP-001` (Active Baseline): Val Macro F1: 0.8566, Test Acc: 85.56%, Test Macro F1: 0.8517, PM Recall: 53.33% (8/15).
+  - `EXP-004` (Augmented Candidate): Val Macro F1: 0.8998, Test Acc: 84.44%, Test Macro F1: 0.8358, PM Recall: 46.67% (7/15), Fenugreek Blight F1: 0.9677 (15/15 recall).
+- **Targeted Hypotheses (Single-Variable Controlled Design):**
+
+  #### Hypothesis 1: Inverse-Cluster-Frequency Class Weighting in Cross-Entropy Loss
+  - **Proposed Modification:**
+    Weight classes inversely proportional to their effective unique visual clusters identified in Phase B:
+    - Clusters per class: `[coriander_bb: 83, coriander_healthy: 85, coriander_pm: 42, fenugreek_bb: 73, fenugreek_cls: 73, fenugreek_healthy: 79]`.
+    - Normalized weights: $w_c = \frac{N_{\max}}{N_c}$ $\rightarrow$ $w = [1.02, 1.00, 2.02, 1.16, 1.16, 1.08]$.
+    - Applied in `nn.CrossEntropyLoss(weight=class_weights)`.
+  - **Mechanism & Agronomic Justification:**
+    Because all 8 PM test errors were borderline (true class probability 40%–47%, losing by 1.9%–15.4% margin), doubling the backpropagation penalty for PM errors creates an upward logit calibration. This encourages the network to prioritize subtle fungal patches without losing fenugreek accuracy.
+  - **Success Metrics:**
+    - Primary: Validation Macro F1 $\ge 0.9000$.
+    - Secondary: `coriander_powdery_mildew` test recall $\ge 66.7\%$ (10/15) without dropping `fenugreek_bacterial_blight` below 93.3%.
+  - **Computational Cost:** ~180 seconds on CPU (1 run on 4,200 images, batch size 32, $\le 15$ epochs with early stopping).
+  - **Risks & Failure Detection:** Excessive false positives for PM (precision collapse). Monitored via validation precision and confusion matrix per epoch.
+
+  #### Hypothesis 2: Regularization via Label Smoothing (`0.10`) & Head Dropout (`0.40`)
+  - **Proposed Modification:**
+    Add `label_smoothing=0.10` to `CrossEntropyLoss`, set classifier dropout `p=0.40` (up from default `0.20`), and increase AdamW weight decay from `0.01` to `0.05`.
+  - **Mechanism:**
+    Label smoothing penalizes overconfident predictions on memorized training images, preventing logit saturation (which drove training accuracy to 100% by epoch 5). Higher dropout forces the classification layer to rely on distributed feature representations rather than specific leaf contours.
+  - **Success Metrics:**
+    - Primary: Smaller generalization gap (training accuracy $\le 98.0\%$, validation accuracy $\ge 90.0\%$).
+    - Secondary: Enhanced prediction margin calibration.
+  - **Computational Cost:** ~180 seconds on CPU.
+  - **Risks & Failure Detection:** Underfitting or slow convergence. Monitored via training loss trajectory.
+
+  #### Hypothesis 3: Sequential Execution Pipeline
+  - **Run 1 (`EXP-005`):** Implement Inverse-Cluster Class Weighting + Label Smoothing (`0.10`) on the 4,200 combined dataset (`--class-weights cluster_balanced --label-smoothing 0.10`).
+  - **Validation & Checkpoint Protocol:**
+    - Run 2-batch smoke test before full execution.
+    - Checkpoint saved strictly to `models/mobilenet_v3_small_class_weighted.pth` (never overwriting baseline `mobilenet_v3_small_plant_disease.pth`).
+    - Strictly use validation set for early stopping and model selection (held-out test set evaluated only after training is finalized).
+
+---
+
 ## 3. Chronological Change History
 
 | Date / Time (IST) | Change ID | Files Changed | Summary of Change | Reason | Validation Status |
@@ -617,6 +662,7 @@ Evaluated using `scripts/evaluate_classifier.py` on checkpoint `models/mobilenet
 | 2026-10-29 16:10 | `CHG-016` | `scripts/compare_audits.py`, `models/*_audit_*`, `DECISIONS.md` | Executed Phase A side-by-sample audit comparing Baseline (`EXP-001`) vs Augmented (`EXP-004`). | Verify exact evaluation identity, quantify agreement (85.56%), isolate 5 regressions and 4 recoveries. | **VALIDATED** (ADR-009 documented). |
 | 2026-10-29 16:15 | `CHG-017` | `scripts/audit_generalisation.py`, `DECISIONS.md` | Conducted Phase B data integrity and perceptual cluster analysis across all 6 classes. | Discovered PM has only 42 unique clusters; isolated 6/8 test errors to 2 multi-image clusters. | **VALIDATED** (ADR-011 documented). |
 | 2026-10-29 18:45 | `CHG-018` | `scripts/error_analysis.py`, `models/phase_c_error_analysis.json`, `DECISIONS.md` | Conducted Phase C deep error analysis profiling full softmax probabilities and margins. | Demonstrated all 8 PM errors are borderline (<57% conf) with PM as runner-up in 7/8. | **VALIDATED** (ADR-012 documented). |
+| 2026-10-29 19:10 | `CHG-019` | `DECISIONS.md` | Formulated Phase D controlled experiment plan with 3 targeted hypotheses (class weighting, regularization). | Establish scientific hypotheses before initiating candidate retraining. | **APPROVED** (ADR-013 documented). |
 
 ---
 
