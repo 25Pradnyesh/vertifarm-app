@@ -528,6 +528,43 @@ Evaluated using `scripts/evaluate_classifier.py` on checkpoint `models/mobilenet
 
 ---
 
+### ADR-011: Data Integrity, Leakage Prevention, and Perceptual Cluster Distribution Audit (Root Cause of Generalisation Gap)
+- **Decision ID:** `ADR-011`
+- **Date/Time:** 2026-10-29T16:15:00+05:30
+- **Status:** **VALIDATED & EMPIRICALLY CONFIRMED**
+- **Context:**
+  The combined training run (`EXP-004`) achieved 99.6% training accuracy by epoch 2 and 100% by epoch 5, yet held-out test accuracy plateaued at 84.44% with `coriander_powdery_mildew` recall collapsing to 46.67% (7/15). Phase B investigates split isolation, leakage, perceptual duplication, and effective visual diversity.
+- **Audit Findings (scripts/audit_generalisation.py):**
+  1. **Strict Split Isolation & Zero Leakage:**
+     - Train: 420 sources, Val: 90 sources, Test: 90 sources.
+     - Exact pairwise overlap: 0 between all splits.
+     - Augmented dataset (3,780 images): 100% derived strictly from the 420 training sources. Zero derivatives generated from validation or test.
+     - Grouped stratification verified: 0 clusters with perceptual dHash distance $\le 4$ cross split boundaries.
+  2. **Effective Visual Diversity by Class (out of 100 images per class):**
+     - `coriander_bacterial_blight`: 83 unique visual clusters (effective diversity 83%).
+     - `coriander_healthy`: 85 unique visual clusters (effective diversity 85%).
+     - `fenugreek_bacterial_blight`: 73 unique visual clusters (effective diversity 73%).
+     - `fenugreek_cercospora_leaf_spot`: 73 unique visual clusters (effective diversity 73%).
+     - `fenugreek_healthy`: 79 unique visual clusters (effective diversity 79%).
+     - **`coriander_powdery_mildew`: ONLY 42 unique visual clusters (effective diversity 42%)!** It is the most visually redundant and sample-starved class in the entire repository.
+  3. **Root Cause Discovery: Cluster Multiplicity in Held-Out Test Set:**
+     - In the 15 test images of `coriander_powdery_mildew`, pairwise difference hashing reveals:
+       - Cluster A (`0040`, `0041`, `0054`, `0055`): All 4 images share pairwise Hamming distance **0** (identical visual foliage).
+       - Cluster B (`0082`, `0083`): Both images share pairwise Hamming distance **0**.
+     - Because grouped stratification preserves entire duplicate clusters within their assigned partition, 6 of the 15 test samples (40.0% of the entire class test set) represent only **TWO distinct visual scenes**.
+     - Both models fail on Cluster A: all 4 samples are misclassified as `fenugreek_healthy` (confidences 51%–74%), penalizing recall by $-26.67\%$.
+     - Both models fail on Cluster B: misclassified as `coriander_bacterial_blight` or `coriander_healthy`, penalizing recall by $-13.33\%$.
+     - Just 2 scene errors produce 6 of the 8 recorded misclassifications (75% of class errors).
+     - On the remaining 9 visually distinct test scenes, the model correctly identifies 7 (77.8% unique scene accuracy).
+  4. **Why Training Reached 100%:**
+     - The training set contains 4,200 images, but they are derived from only 420 source images (~28-30 unique clusters in powdery mildew).
+     - An unregularized MobileNetV3-Small with default dropout (`p=0.2`) and weight decay (`0.01`) readily memorizes individual leaf perimeter geometries rather than abstracting subtle mycelial dust patterns from smooth leaf glare.
+- **Decision:**
+  - Preserve the held-out test set as immutable.
+  - Mitigate the memorization gap in Phase D/E through strong regularization: introduce higher dropout in the linear classification head (`p=0.4–0.5`), higher weight decay (`0.1`), label smoothing (`0.1`), and class-weighted cross-entropy loss to prevent catastrophic memorization of duplicate training leaves.
+
+---
+
 ## 3. Chronological Change History
 
 | Date / Time (IST) | Change ID | Files Changed | Summary of Change | Reason | Validation Status |
@@ -548,6 +585,7 @@ Evaluated using `scripts/evaluate_classifier.py` on checkpoint `models/mobilenet
 | 2026-10-28 23:05 | `CHG-014` | `scripts/train_classifier.py`, `models/mobilenet_v3_small_offline_augmented.pth` | Added `--dataset-type combined` support, smoke test, and executed 4,200-sample training run `EXP-004`. | Train MobileNetV3-Small on combined dataset without double-augmentation. | **COMPLETED** (Val F1 0.8998 at Ep 2). |
 | 2026-10-28 23:08 | `CHG-015` | `models/offline_aug_*`, `scripts/evaluate_classifier.py` | Executed held-out test evaluation on candidate checkpoint. | Rigorous evaluation on untouched test set ($N=90$). | **PASS** (Acc 84.44%, Fenugreek Blight F1 0.9677). |
 | 2026-10-29 16:10 | `CHG-016` | `scripts/compare_audits.py`, `models/*_audit_*`, `DECISIONS.md` | Executed Phase A side-by-sample audit comparing Baseline (`EXP-001`) vs Augmented (`EXP-004`). | Verify exact evaluation identity, quantify agreement (85.56%), isolate 5 regressions and 4 recoveries. | **VALIDATED** (ADR-009 documented). |
+| 2026-10-29 16:15 | `CHG-017` | `scripts/audit_generalisation.py`, `DECISIONS.md` | Conducted Phase B data integrity and perceptual cluster analysis across all 6 classes. | Discovered PM has only 42 unique clusters; isolated 6/8 test errors to 2 multi-image clusters. | **VALIDATED** (ADR-011 documented). |
 
 ---
 
