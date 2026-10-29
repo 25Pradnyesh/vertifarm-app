@@ -119,7 +119,7 @@
     "best_epoch": 2,
     "best_val_f1": 0.8998,
     "best_val_acc": 0.9,
-    "total_duration_sec": 576.27,
+    "total_duration_sec": 691.98,
     "device": "cpu",
     "checkpoint": "mobilenet_v3_small_offline_augmented.pth",
     "seed": 42,

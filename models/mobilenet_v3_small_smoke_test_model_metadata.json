@@ -117,13 +117,19 @@
   },
   "training_summary": {
     "best_epoch": 1,
-    "best_val_f1": 0.1798,
-    "best_val_acc": 0.2344,
-    "total_duration_sec": 1.89,
+    "best_val_f1": 0.0755,
+    "best_val_acc": 0.1562,
+    "total_duration_sec": 1.99,
     "device": "cpu",
     "checkpoint": "mobilenet_v3_small_smoke_test.pth",
     "seed": 42,
-    "smoke_test": true
+    "smoke_test": true,
+    "regularization": {
+      "dropout": 0.3,
+      "weight_decay": 0.01,
+      "label_smoothing": 0.1,
+      "class_weights": "cluster_balanced"
+    }
   },
   "scientific_limitation_disclosure": "The 4,200 training files are generated from 420 source images (430 unique leaves overall). Correlated derivative samples must not be interpreted as independent biological samples. Generalization evaluation is strictly performed on the 90 unaugmented held-out test set.",
   "uncertainty_threshold": 0.6
