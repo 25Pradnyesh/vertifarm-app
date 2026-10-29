@@ -51,8 +51,15 @@ class Settings:
     MQTT_KEEPALIVE: int = int(os.getenv("MQTT_KEEPALIVE", "60"))
 
     # AI Model Configuration
-    _default_model = str(Path(__file__).resolve().parent.parent.parent.parent / "models" / "mobilenet_v3_small_plant_disease.pth")
-    _default_metadata = str(Path(__file__).resolve().parent.parent.parent.parent / "models" / "model_metadata.json")
+    _models_dir = Path(__file__).resolve().parent.parent.parent.parent / "models"
+    _champion_model = _models_dir / "mobilenet_v3_small_class_weighted.pth"
+    _baseline_model = _models_dir / "mobilenet_v3_small_plant_disease.pth"
+    _champion_meta = _models_dir / "mobilenet_v3_small_class_weighted_model_metadata.json"
+    _baseline_meta = _models_dir / "model_metadata.json"
+
+    _default_model = str(_champion_model if _champion_model.exists() else _baseline_model)
+    _default_metadata = str(_champion_meta if _champion_meta.exists() else _baseline_meta)
+
     AI_MODEL_PATH: str = os.getenv("AI_MODEL_PATH", _default_model)
     AI_METADATA_PATH: str = os.getenv("AI_METADATA_PATH", _default_metadata)
     AI_UNCERTAINTY_THRESHOLD: float = float(os.getenv("AI_UNCERTAINTY_THRESHOLD", "0.60"))
