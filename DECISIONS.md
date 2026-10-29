@@ -565,6 +565,36 @@ Evaluated using `scripts/evaluate_classifier.py` on checkpoint `models/mobilenet
 
 ---
 
+### ADR-012: Deep Weak-Class Error Analysis & Softmax Probability Profiling
+- **Decision ID:** `ADR-012`
+- **Date/Time:** 2026-10-29T18:45:00+05:30
+- **Status:** **VALIDATED & EMPIRICALLY CONFIRMED**
+- **Context:**
+  Systematic error diagnosis of all 14 misclassifications in candidate `models/mobilenet_v3_small_offline_augmented.pth` and 13 in baseline `models/mobilenet_v3_small_plant_disease.pth`, profiling full softmax vectors, top-2 margins, and image chromatic/glare properties (`scripts/error_analysis.py`).
+- **Empirical Diagnostics:**
+  1. **All 8 Coriander Powdery Mildew Errors are Borderline (<60% Confidence):**
+     - None of the 8 PM errors are confident mistakes. All have confidence between 48.7% and 56.7%, lying strictly below the 0.60 deployment threshold.
+     - In 7 out of 8 cases, `coriander_powdery_mildew` was the **runner-up class** with substantial predicted probability:
+       - `0008`: predicted `fenugreek_cercospora` (48.7%) vs `coriander_powdery_mildew` (46.8%) — a razor-thin **1.9% margin**!
+       - `0040`, `0041`: predicted `fenugreek_healthy` (51.4%) vs `coriander_powdery_mildew` (44.2%) — a **7.2% margin**.
+       - `0054`, `0055`: predicted `fenugreek_healthy` (55.6%) vs `coriander_powdery_mildew` (40.2%) — a **15.4% margin**.
+       - `0082`, `0083`: predicted `coriander_healthy` (56.7%) vs `coriander_powdery_mildew` (29.3%).
+       - `0030`: predicted `coriander_bacterial_blight` (49.5%) vs `coriander_powdery_mildew` (26.2%).
+  2. **Augmentation Weakened False Certainty on Cluster A:**
+     - For Cluster A (`0040`, `0041`, `0054`, `0055`), the baseline model was overconfidently wrong, assigning 73.5%–74.5% probability to `fenugreek_healthy`.
+     - The offline augmented model shifted significant mass toward truth: false confidence fell to 51.4%–55.6%, while true class probability surged to 40.2%–44.2%.
+  3. **Visual & Photometric Glare Correlation:**
+     - Cluster A images possess 12.0% high-luminance pixels (>180 in all channels) and a green ratio of 0.565, closely resembling smooth specular highlights on healthy leaves.
+  4. **Coriander Bacterial Blight Regressions:**
+     - 3 samples (`0011`, `0095`, `0099`) were correctly identified by baseline but misclassified as `coriander_healthy` by the augmented model.
+     - Root cause: `coriander_healthy` achieved 100% recall (15/15) in the augmented model due to 630 augmented healthy derivatives dominating the decision boundary, absorbing leaves with subtle or early-stage bacterial lesions.
+- **Decision:**
+  Target the borderline margin in Phase D/E:
+  - Even a minor upward logit shift of +0.3 to +0.5 for `coriander_powdery_mildew` (achievable via class weighting or label smoothing) would flip `0008`, `0040`, `0041`, `0054`, and `0055` to correct predictions (+5 correct samples, +33.3% recall!).
+  - Counteract the healthy-class drift by balancing cross-entropy loss weights across coriander healthy, bacterial blight, and powdery mildew.
+
+---
+
 ## 3. Chronological Change History
 
 | Date / Time (IST) | Change ID | Files Changed | Summary of Change | Reason | Validation Status |
@@ -586,6 +616,7 @@ Evaluated using `scripts/evaluate_classifier.py` on checkpoint `models/mobilenet
 | 2026-10-28 23:08 | `CHG-015` | `models/offline_aug_*`, `scripts/evaluate_classifier.py` | Executed held-out test evaluation on candidate checkpoint. | Rigorous evaluation on untouched test set ($N=90$). | **PASS** (Acc 84.44%, Fenugreek Blight F1 0.9677). |
 | 2026-10-29 16:10 | `CHG-016` | `scripts/compare_audits.py`, `models/*_audit_*`, `DECISIONS.md` | Executed Phase A side-by-sample audit comparing Baseline (`EXP-001`) vs Augmented (`EXP-004`). | Verify exact evaluation identity, quantify agreement (85.56%), isolate 5 regressions and 4 recoveries. | **VALIDATED** (ADR-009 documented). |
 | 2026-10-29 16:15 | `CHG-017` | `scripts/audit_generalisation.py`, `DECISIONS.md` | Conducted Phase B data integrity and perceptual cluster analysis across all 6 classes. | Discovered PM has only 42 unique clusters; isolated 6/8 test errors to 2 multi-image clusters. | **VALIDATED** (ADR-011 documented). |
+| 2026-10-29 18:45 | `CHG-018` | `scripts/error_analysis.py`, `models/phase_c_error_analysis.json`, `DECISIONS.md` | Conducted Phase C deep error analysis profiling full softmax probabilities and margins. | Demonstrated all 8 PM errors are borderline (<57% conf) with PM as runner-up in 7/8. | **VALIDATED** (ADR-012 documented). |
 
 ---
 
